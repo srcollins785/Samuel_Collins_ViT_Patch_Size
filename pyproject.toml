@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vit-patch-size"
+version = "0.1.0"
+description = "A small Vision Transformer on CIFAR-10, with a controlled 4x4 versus 8x8 patch-size comparison"
+readme = "README.md"
+requires-python = ">=3.12"
+license = { file = "LICENSE" }
+authors = [{ name = "Samuel Collins", email = "samuel.collins@students.cau.edu" }]
+
+dependencies = [
+    "torch>=2.5",
+    "torchvision>=0.20",
+    "numpy>=2.0",
+    "pandas>=2.2",
+    "matplotlib>=3.9",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.3"]
+report = ["markdown>=3.7", "beautifulsoup4>=4.12"]
+notebook = ["jupyter>=1.1", "nbconvert>=7.16", "nbformat>=5.10"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src", "scripts"]
