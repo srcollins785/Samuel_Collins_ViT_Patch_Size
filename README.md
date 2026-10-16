@@ -18,7 +18,6 @@ training data), as expected of a tiny ViT trained for five epochs.
 - Analysis alone (400-600 words): `report/ViT_Patch_Size_Analysis.pdf`
 - Executed notebook: `ViT_Patch_Size.ipynb`
 - Machine-written configuration: `configuration.yaml`
-- Plan and decisions: `PLAN.md`
 
 ## What this repository is arranged to prove
 
@@ -101,6 +100,18 @@ The official test split is never read by any code here.
     ViT_Patch_Size.ipynb  executed notebook, a thin wrapper over src/
     data/                 split_indices.json (committed); the CIFAR download is ignored
     results/ plots/ report/   generated; force-added once the final runs complete
+
+## Run-file schema
+
+`results/p4.json` and `results/p8.json` are the contract between the experiments
+and the report. `report_data.load` rejects a file that violates it.
+
+    config:  patch_size, embed_dim, depth, heads, mlp_dim, dropout, lr, batch_size,
+             epochs, seed, n_train, n_val, split_checksum, optimizer, normalization
+    model:   num_patches, tokens, attn_entries, parameters, parameter_breakdown, shapes{...}
+    history: [{epoch, train_loss, train_acc, val_loss, val_acc, seconds, train_eval_acc}] x epochs
+    total_seconds, final_val_acc, fixed_examples[{index, true, pred, prob}], val_preds,
+    hardware{}, software{}
 
 ## Tests
 

@@ -6,7 +6,7 @@ Usage
     .venv/bin/python run_experiment.py --run p4
     .venv/bin/python run_experiment.py --run both --smoke    # tiny, to results/smoke/
 
-Writes ``results/p4.json`` and ``results/p8.json`` (schema: PLAN.md section 5)
+Writes ``results/p4.json`` and ``results/p8.json`` (schema: README.md, "Run-file schema")
 and the figures in ``plots/``. ``--smoke`` shrinks the data and epochs and
 writes under ``results/smoke`` and ``plots/smoke`` so a development run can
 never be mistaken for the real one.

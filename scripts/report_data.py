@@ -6,8 +6,8 @@ is not allowed to import the package. This module is the boundary: it reads
 functions, so the prose asks a question and gets the measured answer instead
 of a remembered one. Same design as Assignment 5's ``report_data.py``.
 
-The contract with the experiment code is the run-file schema in PLAN.md,
-section 5. ``load`` checks it up front, so a malformed or half-written run
+The contract with the experiment code is the run-file schema in README.md,
+"Run-file schema". ``load`` checks it up front, so a malformed or half-written run
 fails here with a clear message rather than as a KeyError inside a sentence.
 """
 

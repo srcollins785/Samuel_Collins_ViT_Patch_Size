@@ -2,7 +2,7 @@
 # or large checkpoints, and a report built from a smoke run reads exactly like
 # one built from the real runs. Generated outputs are ignored by default and
 # the genuine set is added deliberately with
-#   git add -f results/ plots/ report/ (see PLAN.md, section 8)
+#   git add -f results/ plots/ report/ once the final runs complete
 
 .venv/
 __pycache__/

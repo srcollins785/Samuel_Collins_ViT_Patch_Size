@@ -1,6 +1,6 @@
 """Train one ViT from scratch and return everything the report needs.
 
-The return value is the run file's content (schema: PLAN.md section 5).
+The return value is the run file's content (schema: README.md, "Run-file schema").
 Nothing here writes to disk; ``run_experiment.py`` does, so the training
 code can be tested without touching ``results/``.
 """

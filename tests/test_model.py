@@ -1,7 +1,14 @@
 """Shapes, parameter counts, and the hand-written attention.
 
 Each assertion is a claim the report makes. The parameter counts are the
-hand calculation in PLAN.md section 4, so a wrong hand calculation fails here.
+hand calculation, so a wrong hand calculation fails here:
+
+    patch projection  3*P*P*64 + 64     3,136 (P=4)   12,352 (P=8)
+    position embed.   L*64              4,160          1,088
+    class token       64                   64             64
+    two encoder blocks 2 * 33,472       66,944         66,944
+    final LayerNorm + head 128 + 650       778            778
+    total                               75,082         81,226
 """
 
 import math
