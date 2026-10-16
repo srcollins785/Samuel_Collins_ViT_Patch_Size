@@ -62,6 +62,11 @@ def check_premises(data: dict) -> None:
         problems.append("4x4 is no longer ahead in every replicated seed")
     if not rd.graded_pair_in_replication(data):
         problems.append("the seed-42 replication does not reproduce the graded runs")
+    mem = rd.memory_ratio(data)
+    if mem is None:
+        problems.append("no memory measurements (run scripts/run_timing.py on an MPS machine)")
+    elif not 1.0 < mem < rd.attention_entry_ratio(data):
+        problems.append("activation memory ratio is no longer between 1 and the L^2 ratio")
     if not (0.8 <= rd.timing_ratio(data, "mps") <= 1.25):
         problems.append("MPS step times are no longer about equal across patch sizes")
     if rd.timing_ratio(data, "cpu") < 1.5:
@@ -141,7 +146,11 @@ def header(data: dict) -> list:
         f"**{STUDENT_NAME}** - {STUDENT_TITLE}, {INSTITUTION}",
         f"{STUDENT_EMAIL}",
         "",
-        f"{COURSE} - Instructor: {INSTRUCTOR} - {date.today().isoformat()}",
+        f"{COURSE}",
+        "",
+        f"Instructor: {INSTRUCTOR}",
+        "",
+        f"Date: {date.today().isoformat()}",
         "",
         f"Repository: {REPOSITORY}",
         "",
@@ -394,6 +403,16 @@ def section_comparison(data: dict) -> list:
                       f"{rd.pct(s['p8_mean'])} ({pts(s['p8_sd'])})",
                       f"{pts(s['diff_mean'])} ({pts(s['diff_sd'])})"))
     timing = data["timing"]
+    mem4, mem8 = rd.memory_row(data, 4), rd.memory_row(data, 8)
+    mem_rows = [
+        ("Parameters + Adam state + input batch (MB)", f"{mem4['static_mb']:.2f}", f"{mem8['static_mb']:.2f}",
+         f"{rd.memory_ratio(data, 'static_mb'):.2f}x"),
+        ("Activations the autograd graph keeps for backward (MB)",
+         f"{mem4['saved_activations_mb']:.1f}", f"{mem8['saved_activations_mb']:.1f}",
+         f"{rd.memory_ratio(data):.2f}x"),
+        ("One (B, heads, L, L) attention-map tensor (MB)", f"{mem4['one_attention_map_mb']:.2f}",
+         f"{mem8['one_attention_map_mb']:.2f}", f"{rd.memory_ratio(data, 'one_attention_map_mb'):.2f}x"),
+    ]
 
     return [
         "## 4. Controlled patch-size comparison",
@@ -447,9 +466,9 @@ def section_comparison(data: dict) -> list:
         "(the patch projection, both LayerNorms, the QKV and output projections, the "
         "MLP, the residual adds - all linear in L), work that does not depend on L at "
         "all (the batch transfer, the optimizer update of all parameters, kernel "
-        "launches, Python overhead), and memory dominated by parameters, Adam's two "
-        "moment buffers and per-token activations rather than by the 65 x 65 map. "
-        "Two measurements (`scripts/run_timing.py`, median of "
+        "launches, Python overhead). Memory likewise holds parameters, Adam's two "
+        "moment buffers and every per-token activation saved for backward, not only "
+        "the L x L maps. Two measurements (`scripts/run_timing.py`, median of "
         f"{timing['steps']} optimizer steps at batch size {timing['batch_size']} "
         "after warm-up) show the effect directly:",
         "",
@@ -464,8 +483,19 @@ def section_comparison(data: dict) -> list:
         f"{rd.timing_ratio(data, 'mps'):.2f}: the two patch sizes cost the same, "
         f"consistent with a step dominated by fixed per-step overhead rather than "
         f"arithmetic. I did not profile the GPU kernels, so the overhead explanation "
-        f"is an inference from these ratios, not a measurement of the cause. Peak "
-        f"memory was not measured.",
+        f"is an inference from these ratios, not a measurement of the cause.",
+        "",
+        f"Memory (GPU allocator, batch size {timing['batch_size']}, each model measured in a "
+        f"fresh process; `scripts/run_timing.py`) tells the same story from another angle. "
+        f"The parameters, Adam's moment buffers and the input batch occupy almost the "
+        f"same memory for both models. The activations kept for the backward pass differ "
+        f"by {rd.memory_ratio(data):.1f} times, not {rd.attention_entry_ratio(data):.1f}, "
+        f"because the score and softmax tensors are only some of what is saved: every "
+        f"token also has its embeddings, normalized copies, QKV projections, MLP "
+        f"activations and dropout masks. This is the memory held after one forward pass, "
+        f"not a measured peak across the backward pass and optimizer step.",
+        "",
+        *table(["quantity", pp(4), pp(8), "ratio"], mem_rows),
         "",
         "### 4.4 Is the accuracy gap more than seed noise?",
         "",

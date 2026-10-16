@@ -65,14 +65,15 @@ import torch
 from IPython.display import Image, display
 
 from vit_patch_size import CLASSES, COMPARED_FIELDS, RunConfig, data, plots, resolve_device
-from vit_patch_size import train
+from vit_patch_size import env, train
 from vit_patch_size.model import ViT, attention_entries, count_parameters
 
 base = RunConfig()
 configs = {"p4": base, "p8": base.with_patch(8)}
 device = resolve_device()
 
-print(f"torch {torch.__version__}, device {device}")
+print("hardware:", env.hardware(device))
+print("software:", env.software())
 for f in COMPARED_FIELDS:
     print(f"  {f:<18} {getattr(base, f)}")
 differing = [f.name for f in fields(base)
@@ -106,7 +107,31 @@ display(Image(filename=out / "samples.png"))
 """),
 
     md("""
-## 3. The model and its tensor shapes
+## 3. The model
+
+Written out by hand in `src/vit_patch_size/model.py` rather than built from
+`nn.TransformerEncoderLayer`, because the report needs the attention weights
+themselves. No code was copied from another repository: the structure follows
+Dosovitskiy et al. (ICLR 2021) and Vaswani et al. (NeurIPS 2017).
+`nn.MultiheadAttention` is used only in `tests/test_model.py`, as an oracle
+that the hand-written attention must match given the same weights.
+
+Specification, as the brief fixes it: 4x4 (then 8x8) non-overlapping patches,
+one shared linear projection to width 64, a learnable class token, learned
+position embeddings, two pre-norm encoder blocks with layer normalization and
+residual connections, four heads, feed-forward width 128, and a linear head
+producing 10 logits.
+"""),
+    code("""
+import inspect
+from vit_patch_size import model as vit_model
+
+for obj in (vit_model.patchify, vit_model.Attention, vit_model.Block, vit_model.ViT):
+    print(inspect.getsource(obj))
+"""),
+
+    md("""
+## 3.1 Tensor shapes
 
 Shapes come from a real forward pass (`trace_shapes`), not from arithmetic.
 With P x P patches on a 32 x 32 image, N = (32/P)^2 patch tokens and
@@ -123,6 +148,34 @@ for name, cfg in configs.items():
         print(f"    {stage:<26} {shp}")
     print("    parameter breakdown:", model.parameter_breakdown())
     print()
+"""),
+
+    md("""
+## 3.2 How attention works
+
+Each token `t` is multiplied by three learned matrices to give a **query**
+`q = W_Q t`, a **key** `k = W_K t` and a **value** `v = W_V t`.
+
+- **Queries and keys decide the weights.** The score of token *i* for token
+  *j* is the dot product `q_i . k_j`, a similarity. Scores are divided by
+  `sqrt(d_key)` for stable gradients and passed through a softmax along *j*,
+  giving non-negative weights that sum to 1.
+- **Values produce the output.** The output for token *i* is the
+  weight-weighted sum of every token's value vector.
+- Four heads repeat this in four 16-dimensional subspaces; an output
+  projection mixes them.
+
+**Why positional information is needed.** Attention weights depend only on
+token content, so without positions the patches are an unordered set and
+shuffling an image's patches cannot change the output. The learned position
+embedding is what lets the model use where a patch is. The cell below shows
+both halves of this on the real model.
+
+**Why there is no causal mask.** Classification has no generation order.
+Every patch should attend to every patch in both directions. A causal mask
+(future positions set to minus infinity before the softmax) belongs to the
+transformer decoder; a ViT is encoder-only. With one, the class token at
+position 0 could see nothing but itself.
 """),
 
     md("""
@@ -158,6 +211,28 @@ print("attention tensor (batch, heads, L, L):", tuple(w.shape))
 print("rows sum to 1:", bool(torch.allclose(w.sum(-1), torch.ones_like(w.sum(-1)), atol=1e-5)))
 print("weight above the diagonal (a causal mask would make this 0):", float(torch.triu(w, 1).sum()))
 print("logits shape:", tuple(logits.shape), "- raw logits; CrossEntropyLoss applies log-softmax itself")
+"""),
+
+    md("""
+### Position embeddings: shuffle the patches
+"""),
+    code("""
+p = 8
+model = train.build_model(configs["p8"]).eval()
+x = split["x_val"][:1]
+g = p and 32 // p
+perm = torch.randperm(g * g, generator=torch.Generator().manual_seed(0))
+blocks = x.reshape(1, 3, g, p, g, p).permute(0, 1, 2, 4, 3, 5).reshape(1, 3, g * g, p, p)[:, :, perm]
+shuffled = blocks.reshape(1, 3, g, g, p, p).permute(0, 1, 2, 4, 3, 5).reshape(1, 3, 32, 32)
+
+with torch.no_grad():
+    with_pos = (model(x) - model(shuffled)).abs().max().item()
+    model.pos_embed.zero_()
+    without_pos = (model(x) - model(shuffled)).abs().max().item()
+print("(untrained model with its initial position embedding, std 0.02, so the effect is small")
+print(" but clearly non-zero; training makes the embedding larger and more structured)")
+print(f"largest logit change when the 16 patches are shuffled, with position embedding:    {with_pos:.4f}")
+print(f"largest logit change when the 16 patches are shuffled, position embedding zeroed:  {without_pos:.2e}")
 """),
 
     md("""
@@ -244,6 +319,8 @@ display(df)
 print("4x4 ahead in", int((df["4x4 - 8x8 (points)"] > 0).sum()), "of", len(df), "seeds")
 timing = json.loads(Path("results/supplementary/timing.json").read_text())
 display(pd.DataFrame(timing["rows"]).round(3))
+display(pd.DataFrame(timing["memory"]).round(2))
+print("rows are one optimizer step (ms); memory is MB held after one forward pass on the GPU")
 """),
 
     md("""

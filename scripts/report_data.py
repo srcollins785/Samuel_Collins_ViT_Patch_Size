@@ -292,3 +292,16 @@ def seconds_range(data: dict, run: str) -> tuple:
     """(min, max) wall-clock seconds across the seed replication for one run."""
     values = data["seeds"]["by_run"][run]["seconds"]
     return min(values), max(values)
+
+
+def memory_row(data: dict, patch: int) -> "dict | None":
+    t = data.get("timing")
+    for row in (t or {}).get("memory", []):
+        if row["patch_size"] == patch:
+            return row
+    return None
+
+
+def memory_ratio(data: dict, field: str = "saved_activations_mb") -> "float | None":
+    a, b = memory_row(data, 4), memory_row(data, 8)
+    return None if a is None or b is None else a[field] / b[field]
