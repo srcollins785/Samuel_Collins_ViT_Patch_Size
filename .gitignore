@@ -33,3 +33,7 @@ checkpoints/
 
 # Executed notebook is committed deliberately once src/ is final.
 ViT_Patch_Size.ipynb
+
+# Smoke runs (run_experiment.py --smoke) must never be committed.
+results/smoke/
+plots/smoke/
