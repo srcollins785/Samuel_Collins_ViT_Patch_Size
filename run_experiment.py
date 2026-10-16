@@ -62,6 +62,7 @@ def main() -> int:
     if len(runs) == 2:
         plots.comparison_curves(runs, plots_dir / "comparison_curves.png")
         plots.attention_cost(runs, plots_dir / "attention_cost.png")
+        plots.per_class_accuracy(runs, plots_dir / "per_class_accuracy.png")
     return 0
 
 

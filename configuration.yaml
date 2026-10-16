@@ -1,0 +1,93 @@
+generated: '2026-10-16'
+generated_by: scripts/write_configuration.py, from results/*.json
+assignment: 'Lab Assignment 6: Vision Transformers (ViT), patch-size comparison'
+data:
+  dataset: CIFAR-10, official training split (50,000 images)
+  n_train: 10000
+  n_val: 2000
+  selection: 'numpy.random.default_rng(seed); per class: permute, first n_val/10 ->
+    val, next n_train/10 -> train; sorted'
+  selection_seed: 42
+  split_checksum: 0a7a9f92ecec1aac2ef4faf119dc578fad8d07b38bd7d7449b887691db7fdedb
+  test_split_used: false
+  image_shape:
+  - 3
+  - 32
+  - 32
+  normalization: ToTensor to [0, 1], then (x - mean) / std per channel, mean and std
+    computed on the training subset only
+  normalization_mean:
+  - 0.491476
+  - 0.481731
+  - 0.446528
+  normalization_std:
+  - 0.248009
+  - 0.244651
+  - 0.262648
+  augmentation: none
+model:
+  embed_dim: 64
+  depth: 2
+  heads: 4
+  mlp_dim: 128
+  dropout: 0.1
+  class_token: true
+  position_embedding: learned
+  attention_mask: none (every patch attends to every patch)
+  block: pre-norm, residual
+  head: linear, 10 logits
+  loss: CrossEntropyLoss on raw logits
+training:
+  seed: 42
+  epochs: 5
+  batch_size: 64
+  batches_per_epoch: 157
+  optimizer: Adam
+  lr: 0.0003
+  betas:
+  - 0.9
+  - 0.999
+  weight_decay: 0.0
+  evaluation: model.eval() and torch.no_grad(); dropout off
+controlled_variable: patch_size (4 versus 8); nothing else differs
+experiments:
+  p4:
+    patch_size: 4
+    patches_N: 64
+    tokens_L: 65
+    attention_entries_per_head_per_layer: 4225
+    parameters: 75082
+    final_val_accuracy: 0.381
+    final_val_loss: 1.6728
+    runtime_seconds: 4.44
+    device: mps
+  p8:
+    patch_size: 8
+    patches_N: 16
+    tokens_L: 17
+    attention_entries_per_head_per_layer: 289
+    parameters: 81226
+    final_val_accuracy: 0.348
+    final_val_loss: 1.7584
+    runtime_seconds: 4.65
+    device: mps
+hardware:
+  chip: Apple M4 Max
+  platform: macOS-26.6.2-arm64-arm-64bit
+  device: mps
+  mps_available: true
+  cuda_available: false
+software:
+  python: 3.12.13
+  torch: 2.14.0
+  torchvision: 0.29.0
+  numpy: 2.5.3
+seed_replication:
+  seeds:
+  - 42
+  - 43
+  - 44
+  - 45
+  - 46
+  p4_wins: 5
+  mean_difference_points: 2.52

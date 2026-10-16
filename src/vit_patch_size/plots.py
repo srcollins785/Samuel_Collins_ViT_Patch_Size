@@ -84,3 +84,40 @@ def attention_cost(runs, path):
     for ax in (a, b):
         ax.grid(axis="y", alpha=0.3)
     _save(fig, path)
+
+
+def per_class_accuracy(runs, path):
+    import numpy as np
+
+    fig, ax = plt.subplots(figsize=(9, 3.4))
+    x = np.arange(len(CLASSES))
+    for i, (name, run) in enumerate(runs.items()):
+        right = np.zeros(10)
+        count = np.zeros(10)
+        for t, p in zip(run["val_labels"], run["val_preds"]):
+            count[t] += 1
+            right[t] += t == p
+        p_ = run["config"]["patch_size"]
+        ax.bar(x + (i - 0.5) * 0.38, right / count, 0.38, color=COLORS[name],
+               label=f"{p_}x{p_}")
+    ax.set_xticks(x)
+    ax.set_xticklabels(CLASSES, rotation=30, ha="right", fontsize=8)
+    ax.set_ylabel("validation accuracy")
+    ax.set_title("Per-class validation accuracy, seed 42 (200 images per class)", fontsize=10)
+    ax.legend(fontsize=8)
+    ax.grid(axis="y", alpha=0.3)
+    _save(fig, path)
+
+
+def seed_replication(by_run, path):
+    fig, ax = plt.subplots(figsize=(6, 3.4))
+    for name, row in by_run.items():
+        p = {"p4": 4, "p8": 8}[name]
+        ax.plot(row["seeds"], row["val_acc"], "o-", color=COLORS[name], label=f"{p}x{p}")
+    ax.set_xlabel("seed (same split, same settings)")
+    ax.set_ylabel("final validation accuracy")
+    ax.set_xticks(by_run["p4"]["seeds"])
+    ax.set_title("Seed replication", fontsize=10)
+    ax.grid(alpha=0.3)
+    ax.legend(fontsize=8)
+    _save(fig, path)

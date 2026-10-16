@@ -108,6 +108,8 @@ def audit(results_dir: Path, split_path: Path) -> list:
         if len(run["fixed_examples"]) != run["config"]["n_fixed_examples"]:
             problems.append(f"{name}: wrong number of fixed examples")
 
+    if rd.graded_pair_in_replication(data) is False:
+        problems.append("the seed-42 replication does not reproduce the graded runs")
     if not rd.same_fixed_examples(data):
         problems.append("the two runs show different fixed validation examples")
     if a["val_labels"] != b["val_labels"]:
@@ -115,12 +117,45 @@ def audit(results_dir: Path, split_path: Path) -> list:
     return problems
 
 
+def audit_report(report_md: Path, results_dir: Path) -> list:
+    """Checks on the generated report: analysis length, and that the headline
+    numbers it prints are the ones in the run files."""
+    from generate_report import ANALYSIS_HEADING, analysis_words
+
+    problems = []
+    if not report_md.is_file():
+        return [f"report not found: {report_md}"]
+    text = report_md.read_text()
+    if ANALYSIS_HEADING not in text:
+        return ["report has no analysis section"]
+    words = analysis_words(text)
+    if not 400 <= words <= 600:
+        problems.append(f"analysis is {words} words; the brief asks for 400-600")
+    data = rd.load(results_dir)
+    for name in rd.RUNS:
+        acc = rd.pct(rd.final(data, name, "val_acc"))
+        if acc not in text:
+            problems.append(f"report does not contain {name} validation accuracy {acc}")
+        params = f"{data['runs'][name]['model']['parameters']:,}"
+        if params not in text:
+            problems.append(f"report does not contain {name} parameter count {params}")
+    for figure in sorted(set(__import__("re").findall(r"\(\.\./(plots/[^)]+)\)", text))):
+        if not (REPO_ROOT / figure).is_file():
+            problems.append(f"report references a missing figure: {figure}")
+    return problems
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--results-dir", default=str(REPO_ROOT / "results"))
     ap.add_argument("--split", default=str(REPO_ROOT / "data" / "split_indices.json"))
+    ap.add_argument("--report", action="store_true",
+                    help="also audit report/ViT_Patch_Size_Report.md")
     args = ap.parse_args()
     problems = audit(Path(args.results_dir), Path(args.split))
+    if args.report:
+        problems += audit_report(REPO_ROOT / "report" / "ViT_Patch_Size_Report.md",
+                                 Path(args.results_dir))
     if problems:
         print(f"AUDIT FAILED ({len(problems)} problem(s)):")
         for p in problems:

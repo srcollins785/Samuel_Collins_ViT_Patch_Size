@@ -49,6 +49,8 @@ def load(results_dir: Path = RESULTS_DIR, runs=RUNS) -> dict:
 
     seeds = results_dir / "supplementary" / "seed_replication.json"
     data["seeds"] = json.loads(seeds.read_text()) if seeds.is_file() else None
+    timing = results_dir / "supplementary" / "timing.json"
+    data["timing"] = json.loads(timing.read_text()) if timing.is_file() else None
     return data
 
 
@@ -140,15 +142,92 @@ def val_acc_gap(data: dict) -> float:
     return abs(a - b)
 
 
-def gap_exceeds_seed_noise(data: dict) -> "bool | None":
-    """None when no seed replication exists - the report must then say so."""
+def seed_stats(data: dict) -> "dict | None":
+    """Per-seed accuracies, paired differences (p4 minus p8) and their summary.
+
+    None when no replication exists - the report must then say so. The
+    comparison is paired: for each seed both patch sizes share the split and
+    differ only in patch size, so the per-seed difference is the quantity
+    whose spread says whether the graded gap is signal.
+    """
     seeds = data.get("seeds")
     if not seeds:
         return None
-    spread = max(
-        max(s["val_acc"]) - min(s["val_acc"]) for s in seeds["by_run"].values()
-    )
-    return val_acc_gap(data) > spread
+    p4, p8 = seeds["by_run"]["p4"], seeds["by_run"]["p8"]
+    if p4["seeds"] != p8["seeds"]:
+        raise SystemExit("seed replication: the two runs used different seeds")
+    diffs = [a - b for a, b in zip(p4["val_acc"], p8["val_acc"])]
+    n = len(diffs)
+
+    def mean(xs):
+        return sum(xs) / len(xs)
+
+    def sd(xs):
+        m = mean(xs)
+        return (sum((x - m) ** 2 for x in xs) / (len(xs) - 1)) ** 0.5
+
+    return {
+        "n": n,
+        "seeds": p4["seeds"],
+        "p4": p4["val_acc"], "p8": p8["val_acc"],
+        "p4_mean": mean(p4["val_acc"]), "p8_mean": mean(p8["val_acc"]),
+        "p4_sd": sd(p4["val_acc"]), "p8_sd": sd(p8["val_acc"]),
+        "diffs": diffs,
+        "diff_mean": mean(diffs), "diff_sd": sd(diffs),
+        "diff_min": min(diffs), "diff_max": max(diffs),
+        "p4_wins": sum(d > 0 for d in diffs),
+        "p4_seconds_mean": mean(seeds["by_run"]["p4"]["seconds"]),
+        "p8_seconds_mean": mean(seeds["by_run"]["p8"]["seconds"]),
+        # A standard error for one accuracy on n_val images, binomial.
+        "binomial_se": (mean(p4["val_acc"] + p8["val_acc"])
+                        * (1 - mean(p4["val_acc"] + p8["val_acc"]))
+                        / seeds["n_val"]) ** 0.5,
+    }
+
+
+def graded_pair_in_replication(data: dict) -> "bool | None":
+    """The seed-42 replication must reproduce the graded runs exactly."""
+    stats = seed_stats(data)
+    if stats is None or 42 not in stats["seeds"]:
+        return None
+    i = stats["seeds"].index(42)
+    return (stats["p4"][i] == final(data, "p4", "val_acc")
+            and stats["p8"][i] == final(data, "p8", "val_acc"))
+
+
+def generalization_gap(data: dict, run: str) -> float:
+    """Clean training accuracy minus validation accuracy at the last epoch."""
+    return final(data, run, "train_eval_acc") - final(data, run, "val_acc")
+
+
+def agreement(data: dict) -> dict:
+    """How often the two models agree on the validation set, and who is right
+    when they disagree. Measured from the saved predictions."""
+    a, b = data["runs"]["p4"], data["runs"]["p8"]
+    labels = a["val_labels"]
+    both = only4 = only8 = neither = 0
+    for t, x, y in zip(labels, a["val_preds"], b["val_preds"]):
+        if x == t and y == t:
+            both += 1
+        elif x == t:
+            only4 += 1
+        elif y == t:
+            only8 += 1
+        else:
+            neither += 1
+    n = len(labels)
+    return {"both_right": both, "only_p4_right": only4, "only_p8_right": only8,
+            "both_wrong": neither, "n": n}
+
+
+def per_class_accuracy(run: dict) -> dict:
+    """{class index: validation accuracy}, from the saved predictions."""
+    right: dict = {}
+    count: dict = {}
+    for t, p in zip(run["val_labels"], run["val_preds"]):
+        count[t] = count.get(t, 0) + 1
+        right[t] = right.get(t, 0) + (t == p)
+    return {c: right[c] / count[c] for c in sorted(count)}
 
 
 def per_class_errors(run: dict) -> dict:
@@ -166,3 +245,50 @@ def same_fixed_examples(data: dict) -> bool:
         [ex["index"] for ex in data["runs"][r]["fixed_examples"]] for r in RUNS
     )
     return a == b
+
+
+CLASS_NAMES = ("airplane", "automobile", "bird", "cat", "deer",
+               "dog", "frog", "horse", "ship", "truck")
+
+
+def largest_class_gap(data: dict) -> dict:
+    """The class where p4 and p8 differ most in validation accuracy (p4 - p8)."""
+    a = per_class_accuracy(data["runs"]["p4"])
+    b = per_class_accuracy(data["runs"]["p8"])
+    c = max(a, key=lambda k: abs(a[k] - b[k]))
+    per_class = data["runs"]["p4"]["val_labels"].count(c)
+    return {"class": CLASS_NAMES[c], "p4": a[c], "p8": b[c],
+            "images": round((a[c] - b[c]) * per_class), "per_class": per_class}
+
+
+def timing_row(data: dict, device: str, patch: int) -> "dict | None":
+    t = data.get("timing")
+    if not t:
+        return None
+    for row in t["rows"]:
+        if row["device"] == device and row["patch_size"] == patch:
+            return row
+    return None
+
+
+def timing_ratio(data: dict, device: str, field: str = "train_step_ms") -> "float | None":
+    a, b = timing_row(data, device, 4), timing_row(data, device, 8)
+    return None if a is None or b is None else a[field] / b[field]
+
+
+def swin_window_entries(grid: int = 56, window: int = 7) -> dict:
+    """Attention entries for one layer over a grid x grid token map: global
+    attention versus non-overlapping window x window attention. Pure arithmetic
+    (Swin has no class token), used in the report's Swin discussion."""
+    tokens = grid * grid
+    windows = (grid // window) ** 2
+    per_window = (window * window) ** 2
+    return {"tokens": tokens, "global": tokens ** 2, "windows": windows,
+            "per_window": per_window, "windowed": windows * per_window,
+            "ratio": tokens ** 2 / (windows * per_window)}
+
+
+def seconds_range(data: dict, run: str) -> tuple:
+    """(min, max) wall-clock seconds across the seed replication for one run."""
+    values = data["seeds"]["by_run"][run]["seconds"]
+    return min(values), max(values)

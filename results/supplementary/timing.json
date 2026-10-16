@@ -1,0 +1,40 @@
+{
+  "warmup": 20,
+  "steps": 100,
+  "batch_size": 64,
+  "threads": 12,
+  "rows": [
+    {
+      "patch_size": 4,
+      "device": "cpu",
+      "tokens": 65,
+      "train_step_ms": 20.34200049820356,
+      "forward_ms": 12.26827100617811,
+      "score_and_softmax_ms": 0.6673540046904236
+    },
+    {
+      "patch_size": 8,
+      "device": "cpu",
+      "tokens": 17,
+      "train_step_ms": 10.307437492883764,
+      "forward_ms": 4.547958509647287,
+      "score_and_softmax_ms": 0.3565625083865598
+    },
+    {
+      "patch_size": 4,
+      "device": "mps",
+      "tokens": 65,
+      "train_step_ms": 3.9030210027704015,
+      "forward_ms": 1.1480624962132424,
+      "score_and_softmax_ms": 0.2567710034782067
+    },
+    {
+      "patch_size": 8,
+      "device": "mps",
+      "tokens": 17,
+      "train_step_ms": 3.92847899638582,
+      "forward_ms": 1.0818749869940802,
+      "score_and_softmax_ms": 0.19524950766935945
+    }
+  ]
+}
