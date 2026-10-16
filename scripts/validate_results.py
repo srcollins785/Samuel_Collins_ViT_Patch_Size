@@ -131,6 +131,25 @@ def audit_report(report_md: Path, results_dir: Path) -> list:
     words = analysis_words(text)
     if not 400 <= words <= 600:
         problems.append(f"analysis is {words} words; the brief asks for 400-600")
+    standalone = report_md.with_name("ViT_Patch_Size_Analysis.md")
+    if not standalone.is_file():
+        problems.append(f"standalone analysis not found: {standalone.name}")
+    else:
+        other = standalone.read_text()
+
+        def paragraphs(t, heading):
+            """The analysis text after its heading, up to the next rule or section."""
+            if heading not in t:
+                return None
+            start = t.index(heading) + len(heading)
+            stops = [x for x in (t.find("\n---", start), t.find("\n## ", start)) if x != -1]
+            return t[start:min(stops) if stops else None].strip()
+
+        mine, full = paragraphs(other, "## Analysis"), paragraphs(text, ANALYSIS_HEADING)
+        if mine is None:
+            problems.append("standalone analysis has no analysis section")
+        elif mine != full:
+            problems.append("standalone analysis differs from section 5 of the report")
     data = rd.load(results_dir)
     for name in rd.RUNS:
         acc = rd.pct(rd.final(data, name, "val_acc"))

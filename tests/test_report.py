@@ -48,3 +48,15 @@ def test_premises_fail_if_a_seed_reverses(data):
 def test_word_counter_counts_section_five_only():
     md = "## 4. x\nlots of words here\n## 5. Analysis\n\n**a** b c\n\n## 6. y\nmore more more more\n"
     assert gr.analysis_words(md) == 3
+
+
+def test_standalone_analysis_is_the_same_text_as_section_five(data):
+    import json
+    data["manifest"] = json.loads((rd.REPO_ROOT / "data" / "split_indices.json").read_text())
+    full = gr.build(data)
+    alone = gr.build_analysis_document(data)
+    assert "## Analysis" in alone and gr.ANALYSIS_HEADING not in alone
+    section = full[full.index(gr.ANALYSIS_HEADING) + len(gr.ANALYSIS_HEADING):]
+    section = section[:section.index("\n## ")].strip()
+    assert section in alone
+    assert 400 <= len(section.replace("**", "").split()) <= 600

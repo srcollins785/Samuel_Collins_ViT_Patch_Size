@@ -59,7 +59,7 @@ experiments:
     parameters: 75082
     final_val_accuracy: 0.381
     final_val_loss: 1.6728
-    runtime_seconds: 5.21
+    runtime_seconds: 5.14
     device: mps
   p8:
     patch_size: 8
@@ -69,7 +69,7 @@ experiments:
     parameters: 81226
     final_val_accuracy: 0.348
     final_val_loss: 1.7584
-    runtime_seconds: 5.24
+    runtime_seconds: 5.41
     device: mps
 hardware:
   chip: Apple M4 Max

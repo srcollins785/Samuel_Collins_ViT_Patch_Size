@@ -15,7 +15,7 @@ Repository: https://github.com/srcollins785/Samuel_Collins_ViT_Patch_Size
 
 ## Summary
 
-**Smaller patches won here, by a modest margin, and not by being cheaper.** The 4x4 model reached 38.1% validation accuracy against 34.8% for 8x8 (a gap of 3.3 points), and it was ahead in 5 of 5 seeds, by 2.5 points on average (range 0.3 to 3.6). The 4x4 model computes 14.6 times as many attention-score entries per head and layer, yet its measured training time was 5.2 s against 5.2 s: at this scale the cost is not set by the attention map. Absolute accuracy is low for both (below 40 percent), as expected of a tiny ViT trained from scratch for five epochs.
+**Smaller patches won here, by a modest margin, and not by being cheaper.** The 4x4 model reached 38.1% validation accuracy against 34.8% for 8x8 (a gap of 3.3 points), and it was ahead in 5 of 5 seeds, by 2.5 points on average (range 0.3 to 3.6). The 4x4 model computes 14.6 times as many attention-score entries per head and layer, yet its measured training time was 5.1 s against 5.4 s: at this scale the cost is not set by the attention map. Absolute accuracy is low for both (below 40 percent), as expected of a tiny ViT trained from scratch for five epochs.
 
 A two-block ViT (width 64, four heads, feed-forward width 128) was trained from scratch on a stratified 10,000-image subset of CIFAR-10 with 2,000 separate validation images, for 5 epochs, once with 4x4 patches and once with 8x8 patches. The split, seed, preprocessing, optimizer, batch size, epoch budget and every width, depth and head count were identical; only the patch size differed. The official test split was never loaded. Total training time was 10.5 s on Apple M4 Max (mps).
 
@@ -93,14 +93,14 @@ Image classification has no left-to-right generation order, so nothing should be
 
 Trained from scratch for 5 epochs with the brief's starting configuration (Adam, learning rate 3e-4, batch size 64), unchanged. Validation ran with dropout disabled (`model.eval()`) and no gradient updates (`torch.no_grad()`); a test checks that evaluation changes no parameter.
 
-**Final validation accuracy 38.1%**, validation loss 1.6728, **75,082 parameters**, **training runtime 5.2 s** (training and validation, 5 epochs, mps). Chance is 10%.
+**Final validation accuracy 38.1%**, validation loss 1.6728, **75,082 parameters**, **training runtime 5.1 s** (training and validation, 5 epochs, mps). Chance is 10%.
 
 | epoch | train loss* | train acc* | train acc (eval mode) | val loss | val acc | seconds |
 |---|---|---|---|---|---|---|
-| 1 | 2.0622 | 24.8% | 26.6% | 1.9839 | 26.1% | 1.31 |
-| 2 | 1.8926 | 30.1% | 34.0% | 1.8153 | 32.0% | 1.01 |
-| 3 | 1.7826 | 34.0% | 37.7% | 1.7260 | 36.4% | 0.96 |
-| 4 | 1.7090 | 36.2% | 38.6% | 1.6969 | 36.8% | 0.98 |
+| 1 | 2.0622 | 24.8% | 26.6% | 1.9839 | 26.1% | 1.36 |
+| 2 | 1.8926 | 30.1% | 34.0% | 1.8153 | 32.0% | 0.95 |
+| 3 | 1.7826 | 34.0% | 37.7% | 1.7260 | 36.4% | 0.93 |
+| 4 | 1.7090 | 36.2% | 38.6% | 1.6969 | 36.8% | 0.95 |
 | 5 | 1.6682 | 38.2% | 40.3% | 1.6728 | 38.1% | 0.95 |
 
 \* Running mean over the epoch's batches, measured with dropout active while the weights were changing. The 'eval mode' column scores the whole training subset after the epoch with dropout off, and is not included in the seconds.
@@ -134,8 +134,8 @@ The 8x8 model was trained from scratch with the same split, preprocessing, seed,
 
 | patch | N | L | parameters | val acc | val loss | train acc (eval mode) | runtime |
 |---|---|---|---|---|---|---|---|
-| 4x4 | 64 | 65 | 75,082 | 38.1% | 1.6728 | 40.3% | 5.2 s |
-| 8x8 | 16 | 17 | 81,226 | 34.8% | 1.7584 | 38.5% | 5.2 s |
+| 4x4 | 64 | 65 | 75,082 | 38.1% | 1.6728 | 40.3% | 5.1 s |
+| 8x8 | 16 | 17 | 81,226 | 34.8% | 1.7584 | 38.5% | 5.4 s |
 
 ![Both learning curves: training (dashed) and validation (solid) loss and accuracy.](../plots/comparison_curves.png)
 
@@ -180,7 +180,7 @@ Each head in each layer scores every token against every token, an L x L map wit
 | 4x4 | 64 | 65 | 4,225 | 33,800 |
 | 8x8 | 16 | 17 | 289 | 2,312 |
 
-The 4x4 model computes 4,225 / 289 = **14.6 times** as many score entries. Its measured training time was 1.00 times the 8x8 model's, not 14.6.
+The 4x4 model computes 4,225 / 289 = **14.6 times** as many score entries. Its measured training time was 0.95 times the 8x8 model's, not 14.6.
 
 ### 4.3 Why the count does not predict runtime or memory
 
@@ -188,10 +188,10 @@ L^2 counts one thing: entries of the score matrix. Total time and memory also in
 
 | device | step ms 4x4 | step ms 8x8 | step ratio | scores+softmax ms 4x4 | scores+softmax ms 8x8 | scores ratio |
 |---|---|---|---|---|---|---|
-| CPU | 22.85 | 12.08 | 1.89x | 0.680 | 0.429 | 1.58x |
-| MPS | 5.12 | 5.35 | 0.96x | 0.247 | 0.176 | 1.40x |
+| CPU | 23.30 | 12.61 | 1.85x | 0.753 | 0.404 | 1.86x |
+| MPS | 4.94 | 5.06 | 0.98x | 0.237 | 0.176 | 1.35x |
 
-On the CPU the whole training step costs 1.89 times as much at 4x4, and the isolated score-and-softmax computation 1.58 times - both far below 14.6, because at width 64 and 16 dimensions per head these matrices are tiny and most time goes to per-token and fixed work. On the GPU (`mps`) the step ratio is 0.96: the two patch sizes cost the same, consistent with a step dominated by fixed per-step overhead rather than arithmetic. I did not profile the GPU kernels, so the overhead explanation is an inference from these ratios, not a measurement of the cause.
+On the CPU the whole training step costs 1.85 times as much at 4x4, and the isolated score-and-softmax computation 1.86 times - both far below 14.6, because at width 64 and 16 dimensions per head these matrices are tiny and most time goes to per-token and fixed work. On the GPU (`mps`) the step ratio is 0.98: the two patch sizes cost the same, consistent with a step dominated by fixed per-step overhead rather than arithmetic. I did not profile the GPU kernels, so the overhead explanation is an inference from these ratios, not a measurement of the cause.
 
 Memory (GPU allocator, batch size 64, each model measured in a fresh process; `scripts/run_timing.py`) tells the same story from another angle. The parameters, Adam's moment buffers and the input batch occupy almost the same memory for both models. The activations kept for the backward pass differ by 5.4 times, not 14.6, because the score and softmax tensors are only some of what is saved: every token also has its embeddings, normalized copies, QKV projections, MLP activations and dropout masks. This is the memory held after one forward pass, not a measured peak across the backward pass and optimizer step.
 
@@ -233,7 +233,7 @@ The models are right together and wrong together more often than not: both corre
 
 ## 5. Analysis
 
-**Performance.** The 4x4 model finished at 38.1% validation accuracy and the 8x8 model at 34.8%, with validation loss 1.673 against 1.758. One pair is thin evidence, since one accuracy carries about 1.1 points of sampling error, but across 5 seeds 4x4 led every time, by 2.5 points on average. The advantage concentrated in particular classes: dog accuracy was 65% against 44%. Most examples behave alike: both models were right on 508 images and wrong on 1,050 of 2,000, and they split on the remainder (254 only 4x4, 188 only 8x8). Smaller patches did not buy accuracy with time: runtimes were 5.2 s and 5.2 s, within the run-to-run noise of about a second, although 4x4 scores 14.6 times as many attention entries. The cost of the larger map is real but invisible at this scale.
+**Performance.** The 4x4 model finished at 38.1% validation accuracy and the 8x8 model at 34.8%, with validation loss 1.673 against 1.758. One pair is thin evidence, since one accuracy carries about 1.1 points of sampling error, but across 5 seeds 4x4 led every time, by 2.5 points on average. The advantage concentrated in particular classes: dog accuracy was 65% against 44%. Most examples behave alike: both models were right on 508 images and wrong on 1,050 of 2,000, and they split on the remainder (254 only 4x4, 188 only 8x8). Smaller patches did not buy accuracy with time: runtimes were 5.1 s and 5.4 s, within the run-to-run noise of about a second, although 4x4 scores 14.6 times as many attention entries. The cost of the larger map is real but invisible at this scale.
 
 **Global attention and position.** A convolution sees a small neighborhood, and distant pixels meet only after many layers; lecture L2 counts O(n/k) layers for kernel size k, against O(1) for self-attention. Here every one of the 65 or 17 tokens attends to all others in the first block. A convolution also shares weights across positions, which builds in translation equivariance; a ViT has no such prior. Attention alone ignores order, so the position embedding is what lets the model use where a patch is; a test confirmed that without it, shuffling patches changes nothing.
 
@@ -246,7 +246,7 @@ The models are right together and wrong together more often than not: both corre
 ## 6. Limitations and honest notes
 
 - **Weak absolute accuracy.** Both models sit well under 50%, as the brief anticipates. Nothing here was tuned to raise them.
-- **Runtime is noisy.** Across the 5 replicated seeds the 4x4 run took 4.9-5.1 s and the 8x8 run 5.1-5.4 s. Differences under about a second are not resolvable, so no claim here depends on which patch size was faster, only on neither being many times faster. Accuracies and predictions reproduce bit for bit on rerun; wall-clock time does not.
+- **Runtime is noisy.** Across the 5 replicated seeds the 4x4 run took 4.8-5.2 s and the 8x8 run 5.4-5.5 s. Differences under about a second are not resolvable, so no claim here depends on which patch size was faster, only on neither being many times faster. Accuracies and predictions reproduce bit for bit on rerun; wall-clock time does not.
 - **One split, two sizes, small validation set.** The split is fixed, so seed variation excludes split-to-split variation. The seed replication addresses initialization and batch order only.
 - **Training metrics.** The 'train' columns are running means with dropout on; the 'eval mode' column is the like-for-like comparison with validation.
 - **Fixed examples** are chosen before any model is trained, from the seed and labels, so they are not selected to show errors. They happen to include both correct and incorrect predictions.

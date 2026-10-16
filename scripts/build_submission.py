@@ -28,6 +28,7 @@ PREFIX = "Samuel_Collins_ViT_Patch_Size/"
 REQUIRED = [
     "ViT_Patch_Size.ipynb",
     "report/ViT_Patch_Size_Report.pdf",
+    "report/ViT_Patch_Size_Analysis.pdf",
     "README.md",
     "requirements.txt",
     "configuration.yaml",

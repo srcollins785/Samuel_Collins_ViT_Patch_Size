@@ -15,6 +15,7 @@ attention map. Both models are under-trained (about 40% accuracy on their own
 training data), as expected of a tiny ViT trained for five epochs.
 
 - Report: `report/ViT_Patch_Size_Report.pdf`
+- Analysis alone (400-600 words): `report/ViT_Patch_Size_Analysis.pdf`
 - Executed notebook: `ViT_Patch_Size.ipynb`
 - Machine-written configuration: `configuration.yaml`
 - Plan and decisions: `PLAN.md`
@@ -95,7 +96,7 @@ The official test split is never read by any code here.
 
     src/vit_patch_size/   config, data, model, train, evaluate, plots, env
     scripts/              split, supplementary, timing, audit, report, PDF, notebook, packaging
-    tests/                pytest suite (49 tests)
+    tests/                pytest suite (50 tests)
     run_experiment.py     entry point for the two graded runs
     ViT_Patch_Size.ipynb  executed notebook, a thin wrapper over src/
     data/                 split_indices.json (committed); the CIFAR download is ignored

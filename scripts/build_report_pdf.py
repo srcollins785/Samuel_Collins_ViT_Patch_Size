@@ -26,8 +26,6 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 REPORT_DIR = REPO_ROOT / "report"
 REPORT_MD = REPORT_DIR / "ViT_Patch_Size_Report.md"
-REPORT_HTML = REPORT_DIR / "ViT_Patch_Size_Report.html"
-REPORT_PDF = REPORT_DIR / "ViT_Patch_Size_Report.pdf"
 
 BROWSERS = [
     "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
@@ -207,7 +205,13 @@ def align_numeric_columns(html: str) -> str:
     return str(soup)
 
 
-def build_html() -> Path:
+DOCUMENTS = [
+    ("ViT_Patch_Size_Report", "ViT Patch Size Report"),
+    ("ViT_Patch_Size_Analysis", "ViT Patch Size Analysis"),
+]
+
+
+def build_html(stem: str, title: str) -> Path:
     try:
         import markdown
     except ImportError:
@@ -216,50 +220,46 @@ def build_html() -> Path:
             "  .venv/bin/python -m pip install -r requirements.txt"
         )
 
-    if not REPORT_MD.is_file():
+    md_path = REPORT_DIR / f"{stem}.md"
+    if not md_path.is_file():
         raise SystemExit(
-            "No report to render. Generate it first:\n"
+            f"No {md_path.name} to render. Generate it first:\n"
             "  python scripts/generate_report.py"
         )
 
     body = markdown.markdown(
-        REPORT_MD.read_text(),
+        md_path.read_text(),
         extensions=["tables", "fenced_code", "toc", "attr_list"],
     )
     body = align_numeric_columns(body)
-    REPORT_HTML.write_text(
+    html_path = REPORT_DIR / f"{stem}.html"
+    html_path.write_text(
         "<!DOCTYPE html>\n<html><head><meta charset='utf-8'>"
-        f"<title>ViT Patch Size Report</title>"
+        f"<title>{title}</title>"
         f"<style>{CSS}</style></head><body>\n{body}\n</body></html>"
     )
-    return REPORT_HTML
+    return html_path
+
+
+def render(stem: str, title: str, browser: str) -> None:
+    html = build_html(stem, title)
+    pdf = REPORT_DIR / f"{stem}.pdf"
+    result = subprocess.run(
+        [browser, "--headless", "--disable-gpu", "--no-pdf-header-footer",
+         f"--print-to-pdf={pdf}", html.as_uri()],
+        capture_output=True, text=True, timeout=180,
+    )
+    if not pdf.is_file():
+        print(result.stderr[-2000:], file=sys.stderr)
+        raise SystemExit(f"Chrome did not produce {pdf.name}.")
+    print(f"Wrote {pdf.relative_to(REPO_ROOT)} ({pdf.stat().st_size / (1024 * 1024):.1f} MB)")
 
 
 def main() -> int:
-    html = build_html()
     browser = find_browser()
-
     print(f"Rendering with {Path(browser).name}")
-    result = subprocess.run(
-        [
-            browser,
-            "--headless",
-            "--disable-gpu",
-            "--no-pdf-header-footer",
-            f"--print-to-pdf={REPORT_PDF}",
-            html.as_uri(),
-        ],
-        capture_output=True,
-        text=True,
-        timeout=180,
-    )
-
-    if not REPORT_PDF.is_file():
-        print(result.stderr[-2000:], file=sys.stderr)
-        raise SystemExit("Chrome did not produce a PDF.")
-
-    size = REPORT_PDF.stat().st_size / (1024 * 1024)
-    print(f"Wrote {REPORT_PDF.relative_to(REPO_ROOT)} ({size:.1f} MB)")
+    for stem, title in DOCUMENTS:
+        render(stem, title, browser)
     return 0
 
 

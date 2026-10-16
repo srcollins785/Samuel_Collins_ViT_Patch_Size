@@ -30,6 +30,7 @@ import report_data as rd  # noqa: E402
 
 REPORT_DIR = REPO_ROOT / "report"
 REPORT_MD = REPORT_DIR / "ViT_Patch_Size_Report.md"
+ANALYSIS_MD = REPORT_DIR / "ViT_Patch_Size_Analysis.md"
 
 STUDENT_NAME = "Samuel Collins"
 STUDENT_TITLE = "Ph.D. Student, Department of Cyber-Physical Systems"
@@ -680,12 +681,45 @@ def build(data: dict) -> str:
     return "\n".join(line for part in parts for line in part).rstrip() + "\n"
 
 
+def build_analysis_document(data: dict) -> str:
+    """The analysis alone, as its own document. It reuses ``section_analysis``,
+    so it is the same text as section 5 of the report and cannot drift from it;
+    only a title block and a pointer to the evidence are added."""
+    check_premises(data)
+    head = [
+        "# Patch Size in a Small Vision Transformer: Analysis",
+        "",
+        f"**{STUDENT_NAME}** - {STUDENT_TITLE}, {INSTITUTION}",
+        "",
+        f"{COURSE}",
+        "",
+        f"Instructor: {INSTRUCTOR}",
+        "",
+        f"Date: {date.today().isoformat()}",
+        "",
+        "---",
+        "",
+    ]
+    tail = [
+        "---",
+        "",
+        "All figures, tables, the model description and the sources are in "
+        "`ViT_Patch_Size_Report.pdf`, and the executed code is in "
+        f"`ViT_Patch_Size.ipynb`. Repository: {REPOSITORY}",
+        "",
+    ]
+    body = ["## Analysis" if line == ANALYSIS_HEADING else line
+            for line in section_analysis(data)]
+    return "\n".join(head + body + tail).rstrip() + "\n"
+
+
 def main() -> int:
     data = rd.load()
     manifest = REPO_ROOT / "data" / "split_indices.json"
     data["manifest"] = json.loads(manifest.read_text())
     REPORT_DIR.mkdir(exist_ok=True)
     REPORT_MD.write_text(build(data))
+    ANALYSIS_MD.write_text(build_analysis_document(data))
     words = analysis_words(REPORT_MD.read_text())
     print(f"Wrote {REPORT_MD.relative_to(REPO_ROOT)}; analysis is {words} words")
     return 0
