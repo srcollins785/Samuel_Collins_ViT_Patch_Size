@@ -95,3 +95,56 @@ def test_seed_stats_and_agreement(results):
     assert rd.graded_pair_in_replication(rd.load(results)) is False
     a = rd.agreement(data)
     assert sum(a[k] for k in ("both_right", "only_p4_right", "only_p8_right", "both_wrong")) == a["n"]
+
+
+def make_ext(results, p4_acc=0.50, p8_acc=0.40, cnn_acc=0.60, epochs=30, graded=None,
+             patience=2):
+    """A tiny extended.json: three arms, two seeds, linear learning curves that peak
+    at epoch 10. ``graded`` (the run dicts) makes the seed-42 ViT runs reproduce the
+    graded first epochs, as the real ones do."""
+    params = {"p4": 75_082, "p8": 81_226, "cnn": 75_096}
+    runs = []
+    for seed in (42, 43):
+        for arm, top in (("p4", p4_acc), ("p8", p8_acc), ("cnn", cnn_acc)):
+            hist = [{"epoch": e, "train_loss": 2.0 - 0.01 * e, "train_acc": top,
+                     "val_loss": 2.0 - 0.1 * e if e <= 10 else 1.0 + 0.1 * (e - 10),
+                     "val_acc": top * e / 10 if e <= 10 else top * 0.9}
+                    for e in range(1, epochs + 1)]
+            if graded and seed == 42 and arm in graded:
+                for g, h in zip(graded[arm]["history"], hist):
+                    h["val_acc"], h["train_loss"] = g["val_acc"], g["train_loss"]
+            hist = hist[:10 + patience]            # stop `patience` epochs after the best
+            runs.append({"arm": arm, "seed": seed, "parameters": params[arm],
+                         "epochs_run": len(hist), "stopped_early": True, "best_epoch": 10,
+                         "best_val_loss": 1.0, "val_acc_at_best": hist[9]["val_acc"],
+                         "final_val_acc": hist[-1]["val_acc"], "seconds": 1.0, "history": hist})
+    (results / "supplementary").mkdir(exist_ok=True)
+    (results / "supplementary" / "extended.json").write_text(json.dumps({
+        "max_epochs": 150, "patience": patience, "split_checksum": "abc", "n_val": 2000,
+        "batch_size": 64, "steps_per_epoch": 157, "runs": runs}))
+
+
+def test_extended_queries(results):
+    make_ext(results, epochs=40, patience=30)     # long enough for the 30-epoch budget
+    data = rd.load(results)
+    st = rd.ext_stats(data)
+    assert st["p4"]["acc_mean"] == pytest.approx(0.50)
+    assert st["cnn"]["best_epoch_mean"] == 10
+    assert st["p4"]["at_budget"][5] == pytest.approx(0.25)   # linear ramp: 0.5 * 5/10
+    assert st["p4"]["at_budget"][30] == pytest.approx(0.45)  # 0.9 * 0.5 after the peak
+    g = rd.ext_gap_summary(data, "p4", "p8")
+    assert g["mean"] == pytest.approx(0.10) and g["wins"] == g["n"] == 2
+    at5 = rd.ext_gap_summary(data, "p4", "p8", 5)
+    assert at5["mean"] == pytest.approx(0.05)
+    assert rd.ext_gap_summary(data, "cnn", "p4", 5)["mean"] == pytest.approx(0.05)
+
+
+def test_extended_absent_is_none_and_mismatched_seeds_are_rejected(results):
+    assert rd.ext_stats(rd.load(results)) is None
+    make_ext(results, epochs=40, patience=30)
+    path = results / "supplementary" / "extended.json"
+    d = json.loads(path.read_text())
+    d["runs"] = [r for r in d["runs"] if not (r["arm"] == "cnn" and r["seed"] == 43)]
+    path.write_text(json.dumps(d))
+    with pytest.raises(SystemExit, match="different seeds"):
+        rd.ext_diffs(rd.load(results), "cnn", "p4")

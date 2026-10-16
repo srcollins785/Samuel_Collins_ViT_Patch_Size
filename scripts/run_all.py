@@ -12,13 +12,14 @@ Steps
  2. build_cifar_split.py        the 10,000 / 2,000 split and its manifest
  3. run_experiment.py           the 4x4 and the 8x8 run
  4. run_supplementary.py        five-seed replication
- 5. run_timing.py               per-step timing on CPU and GPU
- 6. validate_results.py         the comparison is controlled; numbers agree
- 7. write_configuration.py      configuration.yaml, from the run files
- 8. generate_report.py          Markdown, from the run files
- 9. build_report_pdf.py         PDF, via headless Chrome
-10. validate_results.py --report  analysis length and figures
-11. build_notebook.py           write and execute the notebook
+ 5. run_timing.py               per-step timing and memory on CPU and GPU
+ 6. run_extended.py             ViT 4x4, 8x8 and a CNN to convergence, 5 seeds
+ 7. validate_results.py         the comparison is controlled; numbers agree
+ 8. write_configuration.py      configuration.yaml, from the run files
+ 9. generate_report.py          Markdown, from the run files
+10. build_report_pdf.py         both PDFs, via headless Chrome
+11. validate_results.py --report  analysis length and figures
+12. build_notebook.py           write and execute the notebook
 
 Usage
 -----
@@ -35,7 +36,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 PYTHON = sys.executable
 
-TRAINING_STEPS = {"subset", "experiments", "supplementary", "timing"}
+TRAINING_STEPS = {"subset", "experiments", "supplementary", "timing", "extended"}
 
 STEPS = [
     ("tests", [PYTHON, "-m", "pytest", "-q"]),
@@ -43,6 +44,7 @@ STEPS = [
     ("experiments", [PYTHON, "run_experiment.py", "--run", "both"]),
     ("supplementary", [PYTHON, "scripts/run_supplementary.py"]),
     ("timing", [PYTHON, "scripts/run_timing.py"]),
+    ("extended", [PYTHON, "scripts/run_extended.py", "--fresh"]),
     ("audit", [PYTHON, "scripts/validate_results.py"]),
     ("configuration", [PYTHON, "scripts/write_configuration.py"]),
     ("report", [PYTHON, "scripts/generate_report.py"]),

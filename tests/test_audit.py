@@ -6,7 +6,7 @@ import json
 import pytest
 
 import validate_results as vr
-from test_report_data import make_run
+from test_report_data import make_ext, make_run
 
 
 def coherent(patch):
@@ -34,12 +34,18 @@ def coherent(patch):
 
 @pytest.fixture
 def setup(tmp_path):
-    def write(mutate=None):
+    def write(mutate=None, extended_mutate=None):
         runs = {"p4": coherent(4), "p8": coherent(8)}
         if mutate:
             mutate(runs)
         for k, r in runs.items():
             (tmp_path / f"{k}.json").write_text(json.dumps(r))
+        make_ext(tmp_path, graded=runs, epochs=40, patience=2)
+        if extended_mutate:
+            path = tmp_path / "supplementary" / "extended.json"
+            d = json.loads(path.read_text())
+            extended_mutate(d)
+            path.write_text(json.dumps(d))
         split = tmp_path / "split.json"
         split.write_text(json.dumps({
             "checksum": "abc", "test_split_used": False,
@@ -65,4 +71,23 @@ def test_coherent_runs_pass(setup):
 ])
 def test_each_corruption_is_caught(setup, name, mutate, expect):
     problems = setup(mutate)
+    assert any(expect in p for p in problems), (name, problems)
+
+
+def run_of(d, arm, seed=42):
+    return next(r for r in d["runs"] if r["arm"] == arm and r["seed"] == seed)
+
+
+@pytest.mark.parametrize("name,mutate,expect", [
+    ("cnn not parameter matched", lambda d: run_of(d, "cnn").update(parameters=60_000), "CNN has"),
+    ("wrong best epoch", lambda d: run_of(d, "p4").update(best_epoch=3), "minimum-validation-loss"),
+    ("val_acc_at_best stale", lambda d: run_of(d, "p8").update(val_acc_at_best=0.99), "val_acc_at_best"),
+    ("different split", lambda d: d.update(split_checksum="zzz"), "different split"),
+    ("seed-42 curve differs from graded", lambda d: run_of(d, "p4")["history"][0].update(val_acc=0.123),
+     "reproduce the graded"),
+    ("stopped at the wrong time", lambda d: run_of(d, "cnn").update(
+        history=run_of(d, "cnn")["history"][:-1], epochs_run=11), "patience"),
+])
+def test_each_extended_corruption_is_caught(setup, name, mutate, expect):
+    problems = setup(extended_mutate=mutate)
     assert any(expect in p for p in problems), (name, problems)

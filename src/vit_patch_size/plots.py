@@ -121,3 +121,35 @@ def seed_replication(by_run, path):
     ax.grid(alpha=0.3)
     ax.legend(fontsize=8)
     _save(fig, path)
+
+
+ARM_STYLE = {"p4": ("#1f77b4", "ViT 4x4"), "p8": ("#d95f02", "ViT 8x8"),
+             "cnn": ("#2e7d32", "CNN (75k params)")}
+
+
+def extended_curves(payload, path):
+    """Mean validation accuracy and loss per epoch, with a min-max band over seeds.
+    A run that stopped early stops contributing; the curve ends where fewer than
+    all seeds are still training."""
+    import numpy as np
+
+    fig, (a, b) = plt.subplots(1, 2, figsize=(10, 3.6))
+    for arm, (color, label) in ARM_STYLE.items():
+        runs = [r for r in payload["runs"] if r["arm"] == arm]
+        if not runs:
+            continue
+        n = min(r["epochs_run"] for r in runs)
+        for ax, key in ((a, "val_acc"), (b, "val_loss")):
+            m = np.array([[h[key] for h in r["history"][:n]] for r in runs])
+            x = np.arange(1, n + 1)
+            ax.plot(x, m.mean(0), color=color, label=label)
+            ax.fill_between(x, m.min(0), m.max(0), color=color, alpha=0.2)
+    a.set_ylabel("validation accuracy")
+    b.set_ylabel("validation loss")
+    for ax in (a, b):
+        ax.set_xlabel("epoch (157 optimizer steps each; same for every arm)")
+        ax.grid(alpha=0.3)
+    a.legend(fontsize=8)
+    fig.suptitle("Extended training: mean over seeds, band = min to max "
+                 "(shown to the shortest run's length)", fontsize=9)
+    _save(fig, path)

@@ -11,8 +11,14 @@ Cyber-Physical Systems. Instructor: Dr. Kishor Datta Gupta.
 8x8, and was ahead in all five seeds tried (mean margin 2.5 points). It
 computes 14.6 times as many attention-score entries per head and layer, yet its
 measured training time was no longer: at this scale the cost is not set by the
-attention map. Both models are under-trained (about 40% accuracy on their own
-training data), as expected of a tiny ViT trained for five epochs.
+attention map. Both models are under-trained at five epochs (about 40% accuracy
+on their own training data), as expected of a tiny ViT.
+
+**Supplementary: trained to convergence.** With early stopping on validation
+(five seeds, same split and settings), the 4x4 lead widens to about 10 points
+(57.1% against 47.0%), and a parameter-matched CNN reaches 63.2%, ahead of both.
+This is validation-only and the test split is never loaded; see Section 4.6 of the
+report for the caveats.
 
 - Report: `report/ViT_Patch_Size_Report.pdf`
 - Analysis alone (400-600 words): `report/ViT_Patch_Size_Analysis.pdf`
@@ -50,9 +56,9 @@ recorded in each run file. Chrome is needed only for the PDF.
 
     .venv/bin/python scripts/run_all.py
 
-Tests, split, both graded runs, the five-seed replication, timing, audit,
-configuration, report, PDF and executed notebook. Under three minutes on an
-Apple M4 Max. The first failure stops the run.
+Tests, split, both graded runs, the five-seed replication, timing, the extended
+training runs, audit, configuration, report, both PDFs and the executed notebook.
+About ten minutes on an Apple M4 Max. The first failure stops the run.
 
     .venv/bin/python scripts/run_all.py --skip-training
 
@@ -63,7 +69,8 @@ Rebuilds the documents from existing results.
     .venv/bin/python scripts/build_cifar_split.py   # download, record the split
     .venv/bin/python run_experiment.py --run both   # the two graded runs
     .venv/bin/python scripts/run_supplementary.py   # five-seed replication
-    .venv/bin/python scripts/run_timing.py          # per-step timing, CPU and GPU
+    .venv/bin/python scripts/run_timing.py          # per-step timing and memory, CPU and GPU
+    .venv/bin/python scripts/run_extended.py        # ViT 4x4, 8x8 and a CNN to convergence
     .venv/bin/python scripts/validate_results.py    # audit (add --report for the report)
     .venv/bin/python scripts/generate_report.py     # Markdown, from results/
     .venv/bin/python scripts/build_report_pdf.py    # PDF, via headless Chrome
@@ -86,6 +93,9 @@ The official test split is never read by any code here.
   `configuration.yaml`.
 - **Adam, lr 3e-4, batch 64, 5 epochs**: the brief's starting configuration, unchanged.
 - **Compute option not used:** the full 10,000 / 2,000 / 5-epoch protocol runs in seconds.
+- **Extended runs choose the stopping epoch on validation**, so their best-epoch
+  accuracies are slightly optimistic, equally for every arm; accuracy at fixed epoch
+  budgets involves no selection and is reported alongside.
 - **Fixed display examples** are chosen from the seed and labels before any model
   is trained, so they are not selected to show errors.
 - **Runtime is noisy** (about a second run to run); accuracies and predictions
@@ -93,9 +103,9 @@ The official test split is never read by any code here.
 
 ## Layout
 
-    src/vit_patch_size/   config, data, model, train, evaluate, plots, env
+    src/vit_patch_size/   config, data, model, cnn, train, extended, evaluate, plots, env
     scripts/              split, supplementary, timing, audit, report, PDF, notebook, packaging
-    tests/                pytest suite (50 tests)
+    tests/                pytest suite (64 tests)
     run_experiment.py     entry point for the two graded runs
     ViT_Patch_Size.ipynb  executed notebook, a thin wrapper over src/
     data/                 split_indices.json (committed); the CIFAR download is ignored

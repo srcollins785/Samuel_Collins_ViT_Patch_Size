@@ -108,6 +108,37 @@ def audit(results_dir: Path, split_path: Path) -> list:
         if len(run["fixed_examples"]) != run["config"]["n_fixed_examples"]:
             problems.append(f"{name}: wrong number of fixed examples")
 
+    ext = data.get("extended")
+    if ext is None:
+        problems.append("extended runs not found (scripts/run_extended.py)")
+    else:
+        arms = {k: rd.ext_runs(data, k) for k in rd.ARMS}
+        seeds = {k: [r["seed"] for r in rs] for k, rs in arms.items()}
+        if len({tuple(v) for v in seeds.values()}) != 1 or not seeds["p4"]:
+            problems.append(f"extended: arms were not run on the same seeds: {seeds}")
+        if ext["split_checksum"] != ca["split_checksum"]:
+            problems.append("extended runs used a different split from the graded runs")
+        vit4 = runs["p4"]["model"]["parameters"]
+        for r in arms["cnn"]:
+            if abs(r["parameters"] - vit4) / vit4 > 0.001:
+                problems.append(f"extended: CNN has {r['parameters']} parameters, not within 0.1% of the 4x4 ViT's {vit4}")
+        for arm, rs in arms.items():
+            for r in rs:
+                h = r["history"]
+                losses = [x["val_loss"] for x in h]
+                tag = f"extended {arm} seed {r['seed']}"
+                if r["epochs_run"] != len(h):
+                    problems.append(f"{tag}: epochs_run disagrees with the history length")
+                if r["best_epoch"] != losses.index(min(losses)) + 1:
+                    problems.append(f"{tag}: best_epoch is not the minimum-validation-loss epoch")
+                if abs(r["val_acc_at_best"] - h[r["best_epoch"] - 1]["val_acc"]) > 1e-12:
+                    problems.append(f"{tag}: val_acc_at_best disagrees with the history")
+                if r["stopped_early"] and len(h) - r["best_epoch"] != ext["patience"]:
+                    problems.append(f"{tag}: stopped early but not exactly `patience` epochs after the best")
+                if not r["stopped_early"] and len(h) != ext["max_epochs"]:
+                    problems.append(f"{tag}: not stopped early and not at the epoch cap")
+        if rd.ext_matches_graded(data) is not True:
+            problems.append("extended seed-42 ViT runs do not reproduce the graded first five epochs")
     if rd.graded_pair_in_replication(data) is False:
         problems.append("the seed-42 replication does not reproduce the graded runs")
     if not rd.same_fixed_examples(data):

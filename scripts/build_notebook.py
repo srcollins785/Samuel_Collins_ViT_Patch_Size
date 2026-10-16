@@ -324,15 +324,53 @@ print("rows are one optimizer step (ms); memory is MB held after one forward pas
 """),
 
     md("""
+## 6.1 Extended training and a CNN reference (saved by `scripts/run_extended.py`)
+
+The graded runs stop at five epochs, where both ViTs are still improving.
+`run_extended.py` trains the two ViTs and a parameter-matched CNN (75,096
+parameters against the 4x4 ViT's 75,082) until validation loss has not improved
+for 10 epochs, over five seeds on the same split, optimizer, batch size and
+batch order. About eight minutes in total, so it is read from the saved file
+here rather than rerun. Validation only: the test split is never loaded, so the
+accuracies at the stopped epoch are slightly optimistic, equally for every arm.
+The first five epochs of the seed-42 ViT runs reproduce the graded runs, which
+the cell below checks.
+"""),
+    code("""
+ext = json.loads(Path("results/supplementary/extended.json").read_text())
+rows = []
+for arm in ("p4", "p8", "cnn"):
+    rs = sorted((r for r in ext["runs"] if r["arm"] == arm), key=lambda r: r["seed"])
+    acc = [r["val_acc_at_best"] for r in rs]
+    rows.append({"arm": arm, "parameters": rs[0]["parameters"], "seeds": len(rs),
+                 "val acc at best epoch (mean)": round(sum(acc) / len(acc), 4),
+                 "min": round(min(acc), 4), "max": round(max(acc), 4),
+                 "mean best epoch": round(sum(r["best_epoch"] for r in rs) / len(rs), 1),
+                 "all stopped early": all(r["stopped_early"] for r in rs),
+                 **{f"acc @ {b} epochs": round(sum(r["history"][b - 1]["val_acc"] for r in rs) / len(rs), 4)
+                    for b in (5, 10, 20, 30)}})
+display(pd.DataFrame(rows))
+
+for arm in ("p4", "p8"):
+    graded = results[arm]["history"]
+    seed42 = next(r for r in ext["runs"] if r["arm"] == arm and r["seed"] == 42)["history"]
+    same = all(g["val_acc"] == e["val_acc"] and g["train_loss"] == e["train_loss"]
+               for g, e in zip(graded, seed42))
+    print(f"{arm}: first five epochs of the seed-42 extended run equal the graded run: {same}")
+display(Image(filename="plots/extended_curves.png"))
+"""),
+
+    md("""
 ## 7. Reading the result
 
 The 4x4 model was ahead at every seed, by a modest margin, while computing
 about 14.6 times as many attention-score entries per head and layer - and
-without being measurably slower or faster on the GPU. Absolute accuracy is
-low for both: the models are under-trained, not over-fitted. The full
-400-600 word analysis, with the Swin discussion, the limits of this
-experiment and the proposed follow-up, is in
-`report/ViT_Patch_Size_Report.pdf`.
+without being measurably slower or faster on the GPU. At five epochs absolute
+accuracy is low for both: the models are under-trained, not over-fitted.
+Trained to convergence, the 4x4 lead over 8x8 widens (section 6.1), and a
+parameter-matched CNN is ahead of both. The full 400-600 word analysis, with the
+Swin discussion and the limits of these experiments, is in
+`report/ViT_Patch_Size_Analysis.pdf` and `report/ViT_Patch_Size_Report.pdf`.
 
 Reproduce everything with:
 

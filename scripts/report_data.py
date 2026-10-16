@@ -51,6 +51,8 @@ def load(results_dir: Path = RESULTS_DIR, runs=RUNS) -> dict:
     data["seeds"] = json.loads(seeds.read_text()) if seeds.is_file() else None
     timing = results_dir / "supplementary" / "timing.json"
     data["timing"] = json.loads(timing.read_text()) if timing.is_file() else None
+    extended = results_dir / "supplementary" / "extended.json"
+    data["extended"] = json.loads(extended.read_text()) if extended.is_file() else None
     return data
 
 
@@ -305,3 +307,91 @@ def memory_row(data: dict, patch: int) -> "dict | None":
 def memory_ratio(data: dict, field: str = "saved_activations_mb") -> "float | None":
     a, b = memory_row(data, 4), memory_row(data, 8)
     return None if a is None or b is None else a[field] / b[field]
+
+
+# ---------------------------------------------------------------------------
+# Extended training (supplementary): ViT 4x4, ViT 8x8 and a CNN to convergence
+# ---------------------------------------------------------------------------
+
+ARMS = ("p4", "p8", "cnn")
+ARM_LABEL = {"p4": "ViT 4x4", "p8": "ViT 8x8", "cnn": "CNN"}
+BUDGETS = (5, 10, 20, 30)   # epochs; 157 optimizer steps each, equal for every arm
+
+
+def _mean(xs):
+    return sum(xs) / len(xs)
+
+
+def _sd(xs):
+    m = _mean(xs)
+    return (sum((x - m) ** 2 for x in xs) / (len(xs) - 1)) ** 0.5
+
+
+def ext_runs(data: dict, arm: str) -> list:
+    """Runs of one arm, ordered by seed."""
+    runs = [r for r in data["extended"]["runs"] if r["arm"] == arm]
+    return sorted(runs, key=lambda r: r["seed"])
+
+
+def ext_stats(data: dict) -> "dict | None":
+    """Per-arm summaries of the extended runs, or None when they were not run."""
+    ext = data.get("extended")
+    if not ext:
+        return None
+    out = {}
+    for arm in ARMS:
+        runs = ext_runs(data, arm)
+        best = [r["val_acc_at_best"] for r in runs]
+        out[arm] = {
+            "n": len(runs),
+            "seeds": [r["seed"] for r in runs],
+            "parameters": runs[0]["parameters"],
+            "acc_at_best": best,
+            "acc_mean": _mean(best), "acc_sd": _sd(best),
+            "best_epoch_mean": _mean([r["best_epoch"] for r in runs]),
+            "epochs_run_mean": _mean([r["epochs_run"] for r in runs]),
+            "epochs_run_min": min(r["epochs_run"] for r in runs),
+            "all_stopped_early": all(r["stopped_early"] for r in runs),
+            "seconds_mean": _mean([r["seconds"] for r in runs]),
+            # Running training accuracy (dropout on) minus validation accuracy,
+            # at the epoch validation loss was best.
+            "train_minus_val": _mean([r["history"][r["best_epoch"] - 1]["train_acc"]
+                                      - r["val_acc_at_best"] for r in runs]),
+            "at_budget": {b: _mean([r["history"][b - 1]["val_acc"] for r in runs])
+                          for b in BUDGETS},
+        }
+    return out
+
+
+def ext_diffs(data: dict, a: str, b: str, budget: "int | None" = None) -> list:
+    """Per-seed accuracy differences a - b: at each run's best epoch, or at a
+    fixed epoch budget. Pairs runs by seed."""
+    ra, rb = ext_runs(data, a), ext_runs(data, b)
+    if [r["seed"] for r in ra] != [r["seed"] for r in rb]:
+        raise SystemExit("extended runs: arms were run on different seeds")
+    if budget is None:
+        return [x["val_acc_at_best"] - y["val_acc_at_best"] for x, y in zip(ra, rb)]
+    return [x["history"][budget - 1]["val_acc"] - y["history"][budget - 1]["val_acc"]
+            for x, y in zip(ra, rb)]
+
+
+def ext_gap_summary(data: dict, a: str, b: str, budget: "int | None" = None) -> dict:
+    d = ext_diffs(data, a, b, budget)
+    return {"mean": _mean(d), "min": min(d), "max": max(d), "wins": sum(x > 0 for x in d),
+            "n": len(d)}
+
+
+def ext_matches_graded(data: dict) -> "bool | None":
+    """The first five epochs of the seed-42 extended ViT runs must equal the
+    graded runs exactly: same seed, same procedure, same batch order."""
+    if not data.get("extended"):
+        return None
+    for arm in ("p4", "p8"):
+        run = next((r for r in ext_runs(data, arm) if r["seed"] == 42), None)
+        if run is None:
+            return None
+        graded = data["runs"][arm]["history"]
+        for g, e in zip(graded, run["history"]):
+            if g["val_acc"] != e["val_acc"] or g["train_loss"] != e["train_loss"]:
+                return False
+    return True

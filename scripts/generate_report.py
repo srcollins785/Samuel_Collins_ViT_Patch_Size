@@ -54,6 +54,8 @@ def check_premises(data: dict) -> None:
         problems.append("no seed replication (run scripts/run_supplementary.py)")
     if data.get("timing") is None:
         problems.append("no timing measurements (run scripts/run_timing.py)")
+    if data.get("extended") is None:
+        problems.append("no extended runs (run scripts/run_extended.py)")
     if problems:
         raise SystemExit("Cannot write the report: " + "; ".join(problems))
 
@@ -84,6 +86,22 @@ def check_premises(data: dict) -> None:
             problems.append(f"{r}: validation loss no longer falls in the last epoch")
     if rd.runtime_ratio(data) > 2.0:
         problems.append("graded runtime ratio is far from 1; revisit the runtime paragraph")
+    st = rd.ext_stats(data)
+    if rd.ext_matches_graded(data) is not True:
+        problems.append("extended seed-42 runs no longer reproduce the graded first five epochs")
+    if not all(st[a]["all_stopped_early"] for a in rd.ARMS):
+        problems.append("an extended run hit the epoch cap instead of stopping early")
+    if rd.ext_gap_summary(data, "p4", "p8")["wins"] != rd.ext_gap_summary(data, "p4", "p8")["n"]:
+        problems.append("extended: 4x4 no longer ahead of 8x8 in every seed at convergence")
+    for b in rd.BUDGETS:
+        if rd.ext_gap_summary(data, "p4", "p8", b)["wins"] != len(st["p4"]["seeds"]):
+            problems.append(f"extended: 4x4 not ahead of 8x8 in every seed at {b} epochs")
+    if not (rd.ext_gap_summary(data, "p4", "p8")["mean"] > rd.ext_gap_summary(data, "p4", "p8", 5)["mean"]):
+        problems.append("extended: the 4x4-8x8 gap no longer widens with training")
+    if rd.ext_gap_summary(data, "cnn", "p4")["wins"] != len(st["cnn"]["seeds"]):
+        problems.append("extended: the CNN is no longer ahead of 4x4 in every seed")
+    if not (rd.ext_gap_summary(data, "cnn", "p4", 30)["mean"] < rd.ext_gap_summary(data, "cnn", "p4", 5)["mean"]):
+        problems.append("extended: the CNN's margin over 4x4 no longer shrinks with training")
     if problems:
         raise SystemExit(
             "The analysis prose was written for a different result. Revisit "
@@ -121,8 +139,10 @@ def pp(patch: int) -> str:
 
 def headline(data: dict) -> str:
     s = rd.seed_stats(data)
+    ext = rd.ext_stats(data)
+    ext_gap = rd.ext_gap_summary(data, "p4", "p8")
     return (
-        f"**Smaller patches won here, by a modest margin, and not by being cheaper.** "
+        f"**Smaller patches won here, by a modest margin at five epochs, and not by being cheaper.** "
         f"The 4x4 model reached {rd.pct(rd.final(data, 'p4', 'val_acc'))} validation "
         f"accuracy against {rd.pct(rd.final(data, 'p8', 'val_acc'))} for 8x8 "
         f"(a gap of {pts(rd.val_acc_gap(data))} points), and it was ahead in "
@@ -134,7 +154,12 @@ def headline(data: dict) -> str:
         f"{rd.seconds(data['runs']['p8']['total_seconds'])}: at this scale the cost is "
         f"not set by the attention map. Absolute accuracy is low for both "
         f"(below {math.ceil(max(rd.final(data, r, 'val_acc') for r in rd.RUNS) * 20) * 5} percent), "
-        f"as expected of a tiny ViT trained from scratch for five epochs."
+        f"as expected of a tiny ViT trained from scratch for five epochs. Supplementary "
+        f"runs to convergence (section 4.6) show the gap widening rather than closing: "
+        f"{pts(ext_gap['mean'])} points at the stopped epoch, ahead in "
+        f"{ext_gap['wins']} of {ext_gap['n']} seeds, with a parameter-matched CNN ahead of both "
+        f"({rd.pct(ext['cnn']['acc_mean'])} against {rd.pct(ext['p4']['acc_mean'])} and "
+        f"{rd.pct(ext['p8']['acc_mean'])})."
     )
 
 
@@ -531,6 +556,95 @@ def section_comparison(data: dict) -> list:
     ]
 
 
+def section_extended(data: dict) -> list:
+    st = rd.ext_stats(data)
+    ext = data["extended"]
+    n = st["p4"]["n"]
+    steps = ext["steps_per_epoch"]
+    rows = [(rd.ARM_LABEL[a], f"{st[a]['parameters']:,}",
+             f"{rd.pct(st[a]['acc_mean'])} ({pts(st[a]['acc_sd'])})",
+             f"{st[a]['best_epoch_mean']:.0f}", f"{st[a]['epochs_run_mean']:.0f}",
+             pts(st[a]["train_minus_val"]), f"{st[a]['seconds_mean']:.0f}")
+            for a in rd.ARMS]
+    budget_rows = [(rd.ARM_LABEL[a], *[rd.pct(st[a]["at_budget"][b]) for b in rd.BUDGETS])
+                   for a in rd.ARMS]
+
+    def gap_row(label, a, b):
+        cells = []
+        for budget in (*rd.BUDGETS, None):
+            g = rd.ext_gap_summary(data, a, b, budget)
+            cells.append(f"{pts(g['mean'])} ({pts(g['min'])} to {pts(g['max'])}), {g['wins']}/{g['n']}")
+        return (label, *cells)
+
+    gap_rows = [gap_row("4x4 minus 8x8", "p4", "p8"), gap_row("CNN minus 4x4", "cnn", "p4")]
+    p48 = rd.ext_gap_summary(data, "p4", "p8")
+    p48_5 = rd.ext_gap_summary(data, "p4", "p8", 5)
+    p48_30 = rd.ext_gap_summary(data, "p4", "p8", 30)
+    c4 = rd.ext_gap_summary(data, "cnn", "p4")
+    c4_5 = rd.ext_gap_summary(data, "cnn", "p4", 5)
+    c4_30 = rd.ext_gap_summary(data, "cnn", "p4", 30)
+    return [
+        "### 4.6 Training to convergence, and a CNN reference (supplementary)",
+        "",
+        "Five epochs leaves two questions open: is the 4x4 lead a head start that 8x8 "
+        "would erase with more training, and where do these models sit against a network "
+        "with built-in locality? `scripts/run_extended.py` answers both on the same split, "
+        "optimizer, learning rate, batch size, batch order and dropout rate, with no "
+        f"augmentation for any model. Three arms, {n} seeds each, trained until validation "
+        f"loss had not improved for {ext['patience']} epochs (cap {ext['max_epochs']}, never "
+        f"reached): the two ViTs, and a three-block convolutional network "
+        f"({st['cnn']['parameters']:,} parameters, {st['cnn']['parameters'] - st['p4']['parameters']} "
+        f"more than the 4x4 ViT). Every epoch is {steps} optimizer steps for every arm, so "
+        f"epochs are equal step budgets. The first five epochs of the seed-42 ViT runs "
+        f"reproduce the graded runs exactly, which the audit checks.",
+        "",
+        *table(["arm", "parameters", "val acc at best epoch, mean (sd)", "best epoch",
+                "epochs run", "train - val acc (points)", "seconds"], rows),
+        f"Train accuracy is the running mean with dropout on, taken at the best epoch. Unlike "
+        f"at five epochs, where train and validation accuracy were nearly equal, training "
+        f"accuracy now exceeds validation accuracy by {pts(min(st[a]['train_minus_val'] for a in rd.ARMS))} "
+        f"to {pts(max(st[a]['train_minus_val'] for a in rd.ARMS))} points for every arm: the models "
+        f"are no longer under-fitted.",
+        "",
+        rd.figure("plots/extended_curves.png",
+                  "Validation accuracy and loss per epoch for the three arms; line = mean over seeds, band = min to max."),
+        "",
+        "Accuracy at fixed epoch budgets involves no selection, so it is the cleaner "
+        "comparison:",
+        "",
+        *table(["arm", *[f"{b} epochs ({b * steps:,} steps)" for b in rd.BUDGETS]], budget_rows),
+        "Paired per-seed differences in points, as mean (min to max), then the number of "
+        "seeds in which the first arm is ahead:",
+        "",
+        *table(["", *[f"{b} epochs" for b in rd.BUDGETS], "best epoch"], gap_rows),
+        f"**The 4x4 lead widened.** It grew from {pts(p48_5['mean'])} points at 5 epochs to "
+        f"{pts(p48_30['mean'])} at 30 and {pts(p48['mean'])} at each run's best epoch, and 4x4 "
+        f"was ahead in {p48['wins']} of {p48['n']} seeds at every budget. The 8x8 model's "
+        f"validation loss stopped improving at epoch {st['p8']['best_epoch_mean']:.0f} on average "
+        f"(the patience rule ended the run at {st['p8']['epochs_run_mean']:.0f}), near "
+        f"{rd.pct(st['p8']['acc_mean'])}. In this setup its ceiling is lower, not only later. Whether augmentation, a longer patience or another learning "
+        f"rate would change that was not tested.",
+        "",
+        f"**The CNN led both ViTs.** It was ahead of 4x4 in {c4['wins']} of {c4['n']} seeds at "
+        f"every budget. Its margin shrank as training went on, from {pts(c4_5['mean'])} points "
+        f"at 5 epochs to {pts(c4_30['mean'])} at 30 ({pts(c4['mean'])} at the best epochs): "
+        f"over this range the transformer is closing on it, but it did not catch it before "
+        f"early stopping. The "
+        f"CNN also converged in fewer epochs ({st['cnn']['best_epoch_mean']:.0f} against "
+        f"{st['p4']['best_epoch_mean']:.0f} for 4x4).",
+        "",
+        "What this does and does not show. It supports a narrower claim than the "
+        "graded run: in this data-starved, unpretrained, unaugmented setting the "
+        "4x4 ViT beats the 8x8 ViT, and a similarly sized CNN beats both. It does not show "
+        "that CNNs beat transformers in general: one dataset, ten thousand images, no "
+        "augmentation (which ViTs usually need more than CNNs), no pretraining, and one "
+        "hand-chosen CNN with widths untuned for any arm. The stopping epoch was chosen on "
+        "validation images, so the best-epoch accuracies are slightly optimistic, equally "
+        "for every arm.",
+        "",
+    ]
+
+
 def sa(run: dict, key: str) -> str:
     return f"{run['model']['parameter_breakdown'][key]:,}"
 
@@ -543,6 +657,11 @@ def section_analysis(data: dict) -> list:
     ratio = rd.attention_entry_ratio(data)
 
     agree = rd.agreement(data)
+    ext = rd.ext_stats(data)
+    g5 = rd.ext_gap_summary(data, "p4", "p8", 5)
+    gbest = rd.ext_gap_summary(data, "p4", "p8")
+    c5 = rd.ext_gap_summary(data, "cnn", "p4", 5)
+    c30 = rd.ext_gap_summary(data, "cnn", "p4", 30)
     paragraphs = [
         f"**Performance.** The 4x4 model finished at {rd.pct(rd.final(data, 'p4', 'val_acc'))} "
         f"validation accuracy and the 8x8 model at {rd.pct(rd.final(data, 'p8', 'val_acc'))}, "
@@ -575,9 +694,9 @@ def section_analysis(data: dict) -> list:
         f"falling at epoch five. That is underfitting, not overfitting. A ViT lacks a "
         f"CNN's built-in locality, so it must learn such structure from data, and the "
         f"lecture attributes ViT's success to pretraining on hundreds of millions of "
-        f"images; this model saw ten thousand, briefly. The experiment ran no CNN, one "
-        f"dataset, one tiny budget, so it says nothing about CNNs or transformers "
-        f"being better in general.",
+        f"images; this model saw ten thousand, briefly. The graded experiment ran no CNN, one "
+        f"dataset and one tiny budget, so it says nothing about CNNs or transformers "
+        f"being better in general; the supplementary runs below add a CNN but share those limits.",
 
         f"**Swin for dense tasks.** Three separate ideas help. Windowed attention cuts "
         f"cost: on a {swin['tokens']:,}-token map (56 x 56, a 224-pixel image with 4x4 "
@@ -591,12 +710,17 @@ def section_analysis(data: dict) -> list:
         f"of ResNet-style backbones. Small objects need fine patches, and windows make "
         f"fine patches affordable.",
 
-        "**Next experiment.** Train both patch sizes for many more epochs, with "
-        "early stopping on validation, alongside a parameter-matched small CNN under the "
-        "same protocol and several seeds. That would show whether the patch-size gap "
-        "persists at convergence and give the missing CNN reference. Comparing the "
-        "patch sizes at several equal optimizer-step budgets would also separate slower "
-        "convergence from a genuinely lower ceiling at 8x8.",
+        f"**Follow-up, run.** The experiment I would add was cheap, so I ran it as "
+        f"supplementary evidence: both patch sizes and a parameter-matched CNN, "
+        f"{ext['p4']['n']} seeds, trained until validation loss stopped improving. The 4x4 lead "
+        f"grew from {pts(g5['mean'])} points at five epochs to {pts(gbest['mean'])} at convergence "
+        f"({gbest['wins']} of {gbest['n']} seeds), so the five-epoch gap was not a head start 8x8 "
+        f"would erase: it plateaued near {rd.pct(ext['p8']['acc_mean'], 0)} against "
+        f"{rd.pct(ext['p4']['acc_mean'], 0)}. The CNN reached {rd.pct(ext['cnn']['acc_mean'], 0)}, ahead of "
+        f"both, though its margin over 4x4 shrank from {pts(c5['mean'])} points at epoch 5 to "
+        f"{pts(c30['mean'])} at epoch 30. Still missing: augmentation, pretraining, and a "
+        f"final score on the untouched test split, because stopping on validation makes "
+        f"these numbers slightly optimistic.",
     ]
     return [ANALYSIS_HEADING, "", *[p + "\n" for p in paragraphs]]
 
@@ -608,8 +732,13 @@ def section_notes(data: dict) -> list:
     return [
         "## 6. Limitations and honest notes",
         "",
-        "- **Weak absolute accuracy.** Both models sit well under 50%, as the brief "
-        "anticipates. Nothing here was tuned to raise them.",
+        "- **Weak absolute accuracy at five epochs.** Both models sit well under 50%, as "
+        "the brief anticipates. Nothing in the graded runs was tuned to raise them.",
+        "- **Supplementary stopping rule.** In section 4.6 the stopping epoch is chosen on "
+        "the validation images it is then scored on, so those accuracies are slightly "
+        "optimistic, equally for every arm. Accuracy at fixed epoch budgets involves no "
+        "selection. The CNN's validation loss is noisy, so its stopping epoch is noisier "
+        "than the ViTs'. The test split was still never loaded.",
         f"- **Runtime is noisy.** Across the {s['n']} replicated seeds the 4x4 run took "
         f"{lo4:.1f}-{hi4:.1f} s and the 8x8 run {lo8:.1f}-{hi8:.1f} s. Differences "
         f"under about a second are not resolvable, so no claim here depends on "
@@ -646,7 +775,7 @@ def section_reproduce(data: dict) -> list:
         "```",
         "",
         "`run_all.py` runs the tests, rebuilds the split, trains both models, runs the "
-        "seed replication and timing, audits the results, writes `configuration.yaml`, "
+        "seed replication, timing and extended training, audits the results, writes `configuration.yaml`, "
         "builds this report and the executed notebook, and stops at the first failure. "
         "`--skip-training` rebuilds the documents only.",
         "",
@@ -675,7 +804,8 @@ def build(data: dict) -> str:
     check_premises(data)
     parts = [
         header(data), section_data(data), section_model(data), section_p4(data),
-        section_comparison(data), section_analysis(data), section_notes(data),
+        section_comparison(data), section_extended(data), section_analysis(data),
+        section_notes(data),
         section_reproduce(data),
     ]
     return "\n".join(line for part in parts for line in part).rstrip() + "\n"

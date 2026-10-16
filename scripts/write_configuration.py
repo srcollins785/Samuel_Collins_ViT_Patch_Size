@@ -85,6 +85,22 @@ def main() -> int:
             "seeds": seeds["seeds"], "p4_wins": seeds["p4_wins"],
             "mean_difference_points": round(100 * seeds["diff_mean"], 2),
         }
+    ext = rd.ext_stats(data)
+    if ext:
+        out["extended_training"] = {
+            "what": "supplementary: train to convergence with early stopping; validation only",
+            "max_epochs": data["extended"]["max_epochs"],
+            "patience": data["extended"]["patience"],
+            "stop_rule": data["extended"]["stop_rule"],
+            "seeds": ext["p4"]["seeds"],
+            "arms": {a: {"parameters": ext[a]["parameters"],
+                         "val_acc_at_best_epoch_mean": round(ext[a]["acc_mean"], 4),
+                         "best_epoch_mean": round(ext[a]["best_epoch_mean"], 1)}
+                     for a in rd.ARMS},
+            "cnn": "3x conv3x3+BatchNorm+ReLU (widths 40, 64, 86), 2 max-pools, global average "
+                   "pool, dropout 0.1, linear head",
+            "test_split_used": False,
+        }
     (REPO_ROOT / "configuration.yaml").write_text(
         yaml.safe_dump(out, sort_keys=False, default_flow_style=False))
     print("Wrote configuration.yaml")

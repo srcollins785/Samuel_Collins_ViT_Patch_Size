@@ -15,9 +15,9 @@ Repository: https://github.com/srcollins785/Samuel_Collins_ViT_Patch_Size
 
 ## Summary
 
-**Smaller patches won here, by a modest margin, and not by being cheaper.** The 4x4 model reached 38.1% validation accuracy against 34.8% for 8x8 (a gap of 3.3 points), and it was ahead in 5 of 5 seeds, by 2.5 points on average (range 0.3 to 3.6). The 4x4 model computes 14.6 times as many attention-score entries per head and layer, yet its measured training time was 5.1 s against 5.4 s: at this scale the cost is not set by the attention map. Absolute accuracy is low for both (below 40 percent), as expected of a tiny ViT trained from scratch for five epochs.
+**Smaller patches won here, by a modest margin at five epochs, and not by being cheaper.** The 4x4 model reached 38.1% validation accuracy against 34.8% for 8x8 (a gap of 3.3 points), and it was ahead in 5 of 5 seeds, by 2.5 points on average (range 0.3 to 3.6). The 4x4 model computes 14.6 times as many attention-score entries per head and layer, yet its measured training time was 4.1 s against 4.7 s: at this scale the cost is not set by the attention map. Absolute accuracy is low for both (below 40 percent), as expected of a tiny ViT trained from scratch for five epochs. Supplementary runs to convergence (section 4.6) show the gap widening rather than closing: 10.1 points at the stopped epoch, ahead in 5 of 5 seeds, with a parameter-matched CNN ahead of both (63.2% against 57.1% and 47.0%).
 
-A two-block ViT (width 64, four heads, feed-forward width 128) was trained from scratch on a stratified 10,000-image subset of CIFAR-10 with 2,000 separate validation images, for 5 epochs, once with 4x4 patches and once with 8x8 patches. The split, seed, preprocessing, optimizer, batch size, epoch budget and every width, depth and head count were identical; only the patch size differed. The official test split was never loaded. Total training time was 10.5 s on Apple M4 Max (mps).
+A two-block ViT (width 64, four heads, feed-forward width 128) was trained from scratch on a stratified 10,000-image subset of CIFAR-10 with 2,000 separate validation images, for 5 epochs, once with 4x4 patches and once with 8x8 patches. The split, seed, preprocessing, optimizer, batch size, epoch budget and every width, depth and head count were identical; only the patch size differed. The official test split was never loaded. Total training time was 8.8 s on Apple M4 Max (mps).
 
 Every table, figure and number in this report was generated from the saved run files by `scripts/generate_report.py`; none was typed by hand. `scripts/validate_results.py` audits those files, including that the two run configurations differ in the patch size and in no other field.
 
@@ -93,15 +93,15 @@ Image classification has no left-to-right generation order, so nothing should be
 
 Trained from scratch for 5 epochs with the brief's starting configuration (Adam, learning rate 3e-4, batch size 64), unchanged. Validation ran with dropout disabled (`model.eval()`) and no gradient updates (`torch.no_grad()`); a test checks that evaluation changes no parameter.
 
-**Final validation accuracy 38.1%**, validation loss 1.6728, **75,082 parameters**, **training runtime 5.1 s** (training and validation, 5 epochs, mps). Chance is 10%.
+**Final validation accuracy 38.1%**, validation loss 1.6728, **75,082 parameters**, **training runtime 4.1 s** (training and validation, 5 epochs, mps). Chance is 10%.
 
 | epoch | train loss* | train acc* | train acc (eval mode) | val loss | val acc | seconds |
 |---|---|---|---|---|---|---|
-| 1 | 2.0622 | 24.8% | 26.6% | 1.9839 | 26.1% | 1.36 |
-| 2 | 1.8926 | 30.1% | 34.0% | 1.8153 | 32.0% | 0.95 |
-| 3 | 1.7826 | 34.0% | 37.7% | 1.7260 | 36.4% | 0.93 |
-| 4 | 1.7090 | 36.2% | 38.6% | 1.6969 | 36.8% | 0.95 |
-| 5 | 1.6682 | 38.2% | 40.3% | 1.6728 | 38.1% | 0.95 |
+| 1 | 2.0622 | 24.8% | 26.6% | 1.9839 | 26.1% | 1.00 |
+| 2 | 1.8926 | 30.1% | 34.0% | 1.8153 | 32.0% | 0.78 |
+| 3 | 1.7826 | 34.0% | 37.7% | 1.7260 | 36.4% | 0.78 |
+| 4 | 1.7090 | 36.2% | 38.6% | 1.6969 | 36.8% | 0.78 |
+| 5 | 1.6682 | 38.2% | 40.3% | 1.6728 | 38.1% | 0.75 |
 
 \* Running mean over the epoch's batches, measured with dropout active while the weights were changing. The 'eval mode' column scores the whole training subset after the epoch with dropout off, and is not included in the seconds.
 
@@ -134,8 +134,8 @@ The 8x8 model was trained from scratch with the same split, preprocessing, seed,
 
 | patch | N | L | parameters | val acc | val loss | train acc (eval mode) | runtime |
 |---|---|---|---|---|---|---|---|
-| 4x4 | 64 | 65 | 75,082 | 38.1% | 1.6728 | 40.3% | 5.1 s |
-| 8x8 | 16 | 17 | 81,226 | 34.8% | 1.7584 | 38.5% | 5.4 s |
+| 4x4 | 64 | 65 | 75,082 | 38.1% | 1.6728 | 40.3% | 4.1 s |
+| 8x8 | 16 | 17 | 81,226 | 34.8% | 1.7584 | 38.5% | 4.7 s |
 
 ![Both learning curves: training (dashed) and validation (solid) loss and accuracy.](../plots/comparison_curves.png)
 
@@ -180,7 +180,7 @@ Each head in each layer scores every token against every token, an L x L map wit
 | 4x4 | 64 | 65 | 4,225 | 33,800 |
 | 8x8 | 16 | 17 | 289 | 2,312 |
 
-The 4x4 model computes 4,225 / 289 = **14.6 times** as many score entries. Its measured training time was 0.95 times the 8x8 model's, not 14.6.
+The 4x4 model computes 4,225 / 289 = **14.6 times** as many score entries. Its measured training time was 0.86 times the 8x8 model's, not 14.6.
 
 ### 4.3 Why the count does not predict runtime or memory
 
@@ -188,10 +188,10 @@ L^2 counts one thing: entries of the score matrix. Total time and memory also in
 
 | device | step ms 4x4 | step ms 8x8 | step ratio | scores+softmax ms 4x4 | scores+softmax ms 8x8 | scores ratio |
 |---|---|---|---|---|---|---|
-| CPU | 23.30 | 12.61 | 1.85x | 0.753 | 0.404 | 1.86x |
-| MPS | 4.94 | 5.06 | 0.98x | 0.237 | 0.176 | 1.35x |
+| CPU | 19.60 | 9.95 | 1.97x | 0.627 | 0.345 | 1.81x |
+| MPS | 3.50 | 3.59 | 0.97x | 0.247 | 0.202 | 1.22x |
 
-On the CPU the whole training step costs 1.85 times as much at 4x4, and the isolated score-and-softmax computation 1.86 times - both far below 14.6, because at width 64 and 16 dimensions per head these matrices are tiny and most time goes to per-token and fixed work. On the GPU (`mps`) the step ratio is 0.98: the two patch sizes cost the same, consistent with a step dominated by fixed per-step overhead rather than arithmetic. I did not profile the GPU kernels, so the overhead explanation is an inference from these ratios, not a measurement of the cause.
+On the CPU the whole training step costs 1.97 times as much at 4x4, and the isolated score-and-softmax computation 1.81 times - both far below 14.6, because at width 64 and 16 dimensions per head these matrices are tiny and most time goes to per-token and fixed work. On the GPU (`mps`) the step ratio is 0.97: the two patch sizes cost the same, consistent with a step dominated by fixed per-step overhead rather than arithmetic. I did not profile the GPU kernels, so the overhead explanation is an inference from these ratios, not a measurement of the cause.
 
 Memory (GPU allocator, batch size 64, each model measured in a fresh process; `scripts/run_timing.py`) tells the same story from another angle. The parameters, Adam's moment buffers and the input batch occupy almost the same memory for both models. The activations kept for the backward pass differ by 5.4 times, not 14.6, because the score and softmax tensors are only some of what is saved: every token also has its embeddings, normalized copies, QKV projections, MLP activations and dropout masks. This is the memory held after one forward pass, not a measured peak across the backward pass and optimizer step.
 
@@ -231,22 +231,61 @@ The models are right together and wrong together more often than not: both corre
 *Per-class validation accuracy for both models (seed 42).*
 
 
+### 4.6 Training to convergence, and a CNN reference (supplementary)
+
+Five epochs leaves two questions open: is the 4x4 lead a head start that 8x8 would erase with more training, and where do these models sit against a network with built-in locality? `scripts/run_extended.py` answers both on the same split, optimizer, learning rate, batch size, batch order and dropout rate, with no augmentation for any model. Three arms, 5 seeds each, trained until validation loss had not improved for 10 epochs (cap 150, never reached): the two ViTs, and a three-block convolutional network (75,096 parameters, 14 more than the 4x4 ViT). Every epoch is 157 optimizer steps for every arm, so epochs are equal step budgets. The first five epochs of the seed-42 ViT runs reproduce the graded runs exactly, which the audit checks.
+
+| arm | parameters | val acc at best epoch, mean (sd) | best epoch | epochs run | train - val acc (points) | seconds |
+|---|---|---|---|---|---|---|
+| ViT 4x4 | 75,082 | 57.1% (1.4) | 46 | 56 | 5.1 | 42 |
+| ViT 8x8 | 81,226 | 47.0% (2.0) | 38 | 48 | 6.9 | 41 |
+| CNN | 75,096 | 63.2% (1.2) | 30 | 40 | 7.0 | 24 |
+
+Train accuracy is the running mean with dropout on, taken at the best epoch. Unlike at five epochs, where train and validation accuracy were nearly equal, training accuracy now exceeds validation accuracy by 5.1 to 7.0 points for every arm: the models are no longer under-fitted.
+
+![Validation accuracy and loss per epoch for the three arms; line = mean over seeds, band = min to max.](../plots/extended_curves.png)
+
+*Validation accuracy and loss per epoch for the three arms; line = mean over seeds, band = min to max.*
+
+
+Accuracy at fixed epoch budgets involves no selection, so it is the cleaner comparison:
+
+| arm | 5 epochs (785 steps) | 10 epochs (1,570 steps) | 20 epochs (3,140 steps) | 30 epochs (4,710 steps) |
+|---|---|---|---|---|
+| ViT 4x4 | 38.1% | 45.4% | 51.6% | 54.1% |
+| ViT 8x8 | 35.6% | 39.7% | 44.4% | 46.5% |
+| CNN | 51.8% | 57.4% | 60.1% | 59.5% |
+
+Paired per-seed differences in points, as mean (min to max), then the number of seeds in which the first arm is ahead:
+
+|  | 5 epochs | 10 epochs | 20 epochs | 30 epochs | best epoch |
+|---|---|---|---|---|---|
+| 4x4 minus 8x8 | 2.5 (0.3 to 3.6), 5/5 | 5.7 (3.4 to 8.1), 5/5 | 7.3 (5.4 to 8.8), 5/5 | 7.5 (6.8 to 8.5), 5/5 | 10.1 (6.7 to 12.1), 5/5 |
+| CNN minus 4x4 | 13.6 (5.2 to 18.2), 5/5 | 12.0 (9.9 to 14.9), 5/5 | 8.5 (4.6 to 10.6), 5/5 | 5.4 (4.1 to 6.9), 5/5 | 6.1 (4.1 to 7.9), 5/5 |
+
+**The 4x4 lead widened.** It grew from 2.5 points at 5 epochs to 7.5 at 30 and 10.1 at each run's best epoch, and 4x4 was ahead in 5 of 5 seeds at every budget. The 8x8 model's validation loss stopped improving at epoch 38 on average (the patience rule ended the run at 48), near 47.0%. In this setup its ceiling is lower, not only later. Whether augmentation, a longer patience or another learning rate would change that was not tested.
+
+**The CNN led both ViTs.** It was ahead of 4x4 in 5 of 5 seeds at every budget. Its margin shrank as training went on, from 13.6 points at 5 epochs to 5.4 at 30 (6.1 at the best epochs): over this range the transformer is closing on it, but it did not catch it before early stopping. The CNN also converged in fewer epochs (30 against 46 for 4x4).
+
+What this does and does not show. It supports a narrower claim than the graded run: in this data-starved, unpretrained, unaugmented setting the 4x4 ViT beats the 8x8 ViT, and a similarly sized CNN beats both. It does not show that CNNs beat transformers in general: one dataset, ten thousand images, no augmentation (which ViTs usually need more than CNNs), no pretraining, and one hand-chosen CNN with widths untuned for any arm. The stopping epoch was chosen on validation images, so the best-epoch accuracies are slightly optimistic, equally for every arm.
+
 ## 5. Analysis
 
-**Performance.** The 4x4 model finished at 38.1% validation accuracy and the 8x8 model at 34.8%, with validation loss 1.673 against 1.758. One pair is thin evidence, since one accuracy carries about 1.1 points of sampling error, but across 5 seeds 4x4 led every time, by 2.5 points on average. The advantage concentrated in particular classes: dog accuracy was 65% against 44%. Most examples behave alike: both models were right on 508 images and wrong on 1,050 of 2,000, and they split on the remainder (254 only 4x4, 188 only 8x8). Smaller patches did not buy accuracy with time: runtimes were 5.1 s and 5.4 s, within the run-to-run noise of about a second, although 4x4 scores 14.6 times as many attention entries. The cost of the larger map is real but invisible at this scale.
+**Performance.** The 4x4 model finished at 38.1% validation accuracy and the 8x8 model at 34.8%, with validation loss 1.673 against 1.758. One pair is thin evidence, since one accuracy carries about 1.1 points of sampling error, but across 5 seeds 4x4 led every time, by 2.5 points on average. The advantage concentrated in particular classes: dog accuracy was 65% against 44%. Most examples behave alike: both models were right on 508 images and wrong on 1,050 of 2,000, and they split on the remainder (254 only 4x4, 188 only 8x8). Smaller patches did not buy accuracy with time: runtimes were 4.1 s and 4.7 s, within the run-to-run noise of about a second, although 4x4 scores 14.6 times as many attention entries. The cost of the larger map is real but invisible at this scale.
 
 **Global attention and position.** A convolution sees a small neighborhood, and distant pixels meet only after many layers; lecture L2 counts O(n/k) layers for kernel size k, against O(1) for self-attention. Here every one of the 65 or 17 tokens attends to all others in the first block. A convolution also shares weights across positions, which builds in translation equivariance; a ViT has no such prior. Attention alone ignores order, so the position embedding is what lets the model use where a patch is; a test confirmed that without it, shuffling patches changes nothing.
 
-**Poor absolute performance.** Both models are far from converged: training accuracy scored in evaluation mode was 40.3% for 4x4, barely above its validation accuracy, and the curves were still falling at epoch five. That is underfitting, not overfitting. A ViT lacks a CNN's built-in locality, so it must learn such structure from data, and the lecture attributes ViT's success to pretraining on hundreds of millions of images; this model saw ten thousand, briefly. The experiment ran no CNN, one dataset, one tiny budget, so it says nothing about CNNs or transformers being better in general.
+**Poor absolute performance.** Both models are far from converged: training accuracy scored in evaluation mode was 40.3% for 4x4, barely above its validation accuracy, and the curves were still falling at epoch five. That is underfitting, not overfitting. A ViT lacks a CNN's built-in locality, so it must learn such structure from data, and the lecture attributes ViT's success to pretraining on hundreds of millions of images; this model saw ten thousand, briefly. The graded experiment ran no CNN, one dataset and one tiny budget, so it says nothing about CNNs or transformers being better in general; the supplementary runs below add a CNN but share those limits.
 
 **Swin for dense tasks.** Three separate ideas help. Windowed attention cuts cost: on a 3,136-token map (56 x 56, a 224-pixel image with 4x4 patches), global attention needs 9,834,496 entries per head, while 7 x 7 windows need 153,664, 64 times fewer; that is arithmetic, not a measurement. Shifted windows restore communication, because tokens in different windows interact in alternate layers. Patch merging builds multiscale features, giving the detector or segmenter the coarse-to-fine maps a flat coarse-patch ViT lacks; lecture L2 has the four stages shrink a 224-pixel input to 56, 28, 14 and 7 tokens per side, the resolutions of ResNet-style backbones. Small objects need fine patches, and windows make fine patches affordable.
 
-**Next experiment.** Train both patch sizes for many more epochs, with early stopping on validation, alongside a parameter-matched small CNN under the same protocol and several seeds. That would show whether the patch-size gap persists at convergence and give the missing CNN reference. Comparing the patch sizes at several equal optimizer-step budgets would also separate slower convergence from a genuinely lower ceiling at 8x8.
+**Follow-up, run.** The experiment I would add was cheap, so I ran it as supplementary evidence: both patch sizes and a parameter-matched CNN, 5 seeds, trained until validation loss stopped improving. The 4x4 lead grew from 2.5 points at five epochs to 10.1 at convergence (5 of 5 seeds), so the five-epoch gap was not a head start 8x8 would erase: it plateaued near 47% against 57%. The CNN reached 63%, ahead of both, though its margin over 4x4 shrank from 13.6 points at epoch 5 to 5.4 at epoch 30. Still missing: augmentation, pretraining, and a final score on the untouched test split, because stopping on validation makes these numbers slightly optimistic.
 
 ## 6. Limitations and honest notes
 
-- **Weak absolute accuracy.** Both models sit well under 50%, as the brief anticipates. Nothing here was tuned to raise them.
-- **Runtime is noisy.** Across the 5 replicated seeds the 4x4 run took 4.8-5.2 s and the 8x8 run 5.4-5.5 s. Differences under about a second are not resolvable, so no claim here depends on which patch size was faster, only on neither being many times faster. Accuracies and predictions reproduce bit for bit on rerun; wall-clock time does not.
+- **Weak absolute accuracy at five epochs.** Both models sit well under 50%, as the brief anticipates. Nothing in the graded runs was tuned to raise them.
+- **Supplementary stopping rule.** In section 4.6 the stopping epoch is chosen on the validation images it is then scored on, so those accuracies are slightly optimistic, equally for every arm. Accuracy at fixed epoch budgets involves no selection. The CNN's validation loss is noisy, so its stopping epoch is noisier than the ViTs'. The test split was still never loaded.
+- **Runtime is noisy.** Across the 5 replicated seeds the 4x4 run took 3.7-3.9 s and the 8x8 run 4.2-4.3 s. Differences under about a second are not resolvable, so no claim here depends on which patch size was faster, only on neither being many times faster. Accuracies and predictions reproduce bit for bit on rerun; wall-clock time does not.
 - **One split, two sizes, small validation set.** The split is fixed, so seed variation excludes split-to-split variation. The seed replication addresses initialization and batch order only.
 - **Training metrics.** The 'train' columns are running means with dropout on; the 'eval mode' column is the like-for-like comparison with validation.
 - **Fixed examples** are chosen before any model is trained, from the seed and labels, so they are not selected to show errors. They happen to include both correct and incorrect predictions.
@@ -262,7 +301,7 @@ python3.12 -m venv .venv
 .venv/bin/python scripts/run_all.py
 ```
 
-`run_all.py` runs the tests, rebuilds the split, trains both models, runs the seed replication and timing, audits the results, writes `configuration.yaml`, builds this report and the executed notebook, and stops at the first failure. `--skip-training` rebuilds the documents only.
+`run_all.py` runs the tests, rebuilds the split, trains both models, runs the seed replication, timing and extended training, audits the results, writes `configuration.yaml`, builds this report and the executed notebook, and stops at the first failure. `--skip-training` rebuilds the documents only.
 
 **Sources.** No code was copied from another repository; the model is written from the papers below.
 

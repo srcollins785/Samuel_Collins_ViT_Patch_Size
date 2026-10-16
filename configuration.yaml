@@ -59,7 +59,7 @@ experiments:
     parameters: 75082
     final_val_accuracy: 0.381
     final_val_loss: 1.6728
-    runtime_seconds: 5.14
+    runtime_seconds: 4.09
     device: mps
   p8:
     patch_size: 8
@@ -69,7 +69,7 @@ experiments:
     parameters: 81226
     final_val_accuracy: 0.348
     final_val_loss: 1.7584
-    runtime_seconds: 5.41
+    runtime_seconds: 4.75
     device: mps
 hardware:
   chip: Apple M4 Max
@@ -91,3 +91,30 @@ seed_replication:
   - 46
   p4_wins: 5
   mean_difference_points: 2.52
+extended_training:
+  what: 'supplementary: train to convergence with early stopping; validation only'
+  max_epochs: 150
+  patience: 10
+  stop_rule: validation loss has not improved for `patience` epochs
+  seeds:
+  - 42
+  - 43
+  - 44
+  - 45
+  - 46
+  arms:
+    p4:
+      parameters: 75082
+      val_acc_at_best_epoch_mean: 0.5714
+      best_epoch_mean: 46.2
+    p8:
+      parameters: 81226
+      val_acc_at_best_epoch_mean: 0.47
+      best_epoch_mean: 38.0
+    cnn:
+      parameters: 75096
+      val_acc_at_best_epoch_mean: 0.6322
+      best_epoch_mean: 30.4
+  cnn: 3x conv3x3+BatchNorm+ReLU (widths 40, 64, 86), 2 max-pools, global average
+    pool, dropout 0.1, linear head
+  test_split_used: false

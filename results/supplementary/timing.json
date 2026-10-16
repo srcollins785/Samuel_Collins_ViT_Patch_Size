@@ -8,33 +8,33 @@
       "patch_size": 4,
       "device": "cpu",
       "tokens": 65,
-      "train_step_ms": 23.297291496419348,
-      "forward_ms": 13.898749995860271,
-      "score_and_softmax_ms": 0.7527289999416098
+      "train_step_ms": 19.600895990151912,
+      "forward_ms": 11.792874996899627,
+      "score_and_softmax_ms": 0.6267494900384918
     },
     {
       "patch_size": 8,
       "device": "cpu",
       "tokens": 17,
-      "train_step_ms": 12.614103994565085,
-      "forward_ms": 5.546728993067518,
-      "score_and_softmax_ms": 0.4036874888697639
+      "train_step_ms": 9.952333493856713,
+      "forward_ms": 4.442500008735806,
+      "score_and_softmax_ms": 0.3454789984971285
     },
     {
       "patch_size": 4,
       "device": "mps",
       "tokens": 65,
-      "train_step_ms": 4.944458501995541,
-      "forward_ms": 1.290187516133301,
-      "score_and_softmax_ms": 0.2373335009906441
+      "train_step_ms": 3.496979014016688,
+      "forward_ms": 1.1557289835764095,
+      "score_and_softmax_ms": 0.2468539896653965
     },
     {
       "patch_size": 8,
       "device": "mps",
       "tokens": 17,
-      "train_step_ms": 5.056541500380263,
-      "forward_ms": 1.2378329993225634,
-      "score_and_softmax_ms": 0.17560400010552257
+      "train_step_ms": 3.591791493818164,
+      "forward_ms": 1.0653329954948276,
+      "score_and_softmax_ms": 0.2023330016527325
     }
   ],
   "memory": [
