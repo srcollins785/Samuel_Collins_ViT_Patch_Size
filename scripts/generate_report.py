@@ -710,17 +710,19 @@ def section_analysis(data: dict) -> list:
         f"of ResNet-style backbones. Small objects need fine patches, and windows make "
         f"fine patches affordable.",
 
-        f"**Follow-up, run.** The experiment I would add was cheap, so I ran it as "
-        f"supplementary evidence: both patch sizes and a parameter-matched CNN, "
-        f"{ext['p4']['n']} seeds, trained until validation loss stopped improving. The 4x4 lead "
-        f"grew from {pts(g5['mean'])} points at five epochs to {pts(gbest['mean'])} at convergence "
-        f"({gbest['wins']} of {gbest['n']} seeds), so the five-epoch gap was not a head start 8x8 "
-        f"would erase: it plateaued near {rd.pct(ext['p8']['acc_mean'], 0)} against "
-        f"{rd.pct(ext['p4']['acc_mean'], 0)}. The CNN reached {rd.pct(ext['cnn']['acc_mean'], 0)}, ahead of "
-        f"both, though its margin over 4x4 shrank from {pts(c5['mean'])} points at epoch 5 to "
-        f"{pts(c30['mean'])} at epoch 30. Still missing: augmentation, pretraining, and a "
-        f"final score on the untouched test split, because stopping on validation makes "
-        f"these numbers slightly optimistic.",
+        f"**Additional controlled experiment.** The most informative addition is training "
+        f"to convergence with a parameter-matched CNN as a reference, so I ran it (section "
+        f"4.6 of the full report): {ext['p4']['n']} seeds, the same split and settings, validation "
+        f"only. The 4x4 lead grew from {pts(g5['mean'])} points at five epochs to "
+        f"{pts(gbest['mean'])} at each run's best epoch, in {gbest['wins']} of {gbest['n']} seeds. "
+        f"Under this setup that points to a lower ceiling for 8x8 rather than a slower start: "
+        f"it plateaued near {rd.pct(ext['p8']['acc_mean'], 0)} against "
+        f"{rd.pct(ext['p4']['acc_mean'], 0)} for 4x4. The CNN reached "
+        f"{rd.pct(ext['cnn']['acc_mean'], 0)}, ahead of both ViTs in every seed, though its margin "
+        f"over 4x4 narrowed from {pts(c5['mean'])} points at epoch 5 to {pts(c30['mean'])} at "
+        f"epoch 30. The stopping epoch was chosen on validation images, so these accuracies "
+        f"are slightly optimistic; the next steps are a final score on the untouched test "
+        f"split, augmentation and pretraining.",
     ]
     return [ANALYSIS_HEADING, "", *[p + "\n" for p in paragraphs]]
 
